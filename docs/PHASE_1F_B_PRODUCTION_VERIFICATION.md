@@ -1,7 +1,8 @@
 # Phase 1F-B — Supabase + Vercel Reconnection & Production Verification
 
-**Status: `BLOCKED`** — production live gates could not be accessed from this environment.
-**Branch:** `main` (= `arena/01a05116-health-os-1-0`) @ `3eae89e`.
+**Status: `BLOCKED`** (production live gates) — but the Phase 1F-B **engineering/code**
+portion is complete and merged to `main` (see §14).
+**Branch:** `main` @ `d0d2c56` (= `arena/01a05116-health-os-1-0`).
 **Date:** 2026-08-30.
 
 ---
@@ -224,3 +225,52 @@ are required before Phase 1F-B can proceed:
 
 Until these exist, production gates remain genuinely BLOCKED and no production result is
 claimed.
+
+---
+
+## 14. Phase 1F-B Engineering Upgrade (merged to main)
+
+A fresh code-level audit and engineering upgrade was performed and merged to `main`
+(`d0d2c56`). Findings were classified honestly and fixed at code level; live external gates
+remain BLOCKED (§4–§8).
+
+### Findings & fixes
+
+| Finding | Class | Fix |
+|---|---|---|
+| Self-registration privilege escalation: client-supplied `role` was used in `ensureMembership` **before** the safe-role clamp, letting a caller self-assign `admin`/`ceo`/etc. | FIXED | Role is now clamped to the safe self-register set (`patient`) **before** any membership is created; membership role is re-verified on login. |
+| JWT algorithm not constrained (algorithm-confusion / `alg:none` risk). | FIXED | Signing (`JwtModule`), verification (`AuthContextMiddleware`), and the Passport `JwtStrategy` now constrain to `HS256`. |
+| Production config did not fail closed on missing `JWT_ISSUER`/`JWT_AUDIENCE` (caused a runtime 500 on login). | FIXED | `assertProductionConfig()` now requires issuer + audience in production and aborts boot with a clear message. |
+
+### Regression evidence (all PASS)
+
+- **Backend tests:** **63 tests / 10 suites** vs real PostgreSQL 18.4, and **63 / 10** vs
+  the PGlite fallback (baseline 61 + 2 new security regression tests).
+- New tests: (1) self-registration cannot escalate to a privileged role; (2) `alg:none` /
+  non-HS256 tokens are rejected.
+- **Migration idempotency:** `001` applied twice on a fresh real-PG DB → OK (8 tables,
+  `security_version`, 4 RLS policies, 4 RLS-enabled tables, 16 indexes, 6 FKs, 4 UNIQUE).
+- **RLS / tenant isolation (real PG, non-owner role):** A reads A / not B; B reads B / not A;
+  NULL-tenant fail-closed (0 rows); cross-tenant INSERT denied; cross-tenant UPDATE/DELETE
+  affect 0 rows. All PASS.
+- **Production startup (real PG):** app boots; missing `JWT_ISSUER`/`JWT_AUDIENCE` in
+  production fails closed at boot; `/health/live` 200 and `/health/ready` 200
+  (`database:"up"`).
+- **Live auth smoke (real PG):** register → login (token issued, role patient); escalation
+  attempt clamped to patient; wrong password 401; garbage token 401.
+- **Frontend:** 14 tests / typecheck / build PASS. Backend lint / tsc / build PASS.
+
+No tests were removed, skipped, weakened, or modified solely to obtain a PASS. No secrets
+were introduced; reachable-history and `origin/main` secret scans remain clean.
+
+### Engineering status (merged)
+
+ENGINEERING: PASS (merged to `main` @ `d0d2c56`)
+POSTGRESQL / MIGRATIONS / RLS / TENANT ISOLATION / AUTHENTICATION / AUTHORIZATION /
+SESSION SECURITY / JWT / CSRF / AUDIT: PASS (local real-PostgreSQL evidence)
+SUPABASE LIVE / VERCEL LIVE / MFA LIVE / PRODUCTION DEPLOYMENT / PRODUCTION E2E:
+BLOCKED (no external infrastructure/credentials — not fabricated)
+
+**PHASE 1F-B (production) = BLOCKED. PHASE 3 MUST REMAIN BLOCKED.**
+The engineering upgrade is complete and merged, but production acceptance requires the
+owner-controlled prerequisites in §13.
