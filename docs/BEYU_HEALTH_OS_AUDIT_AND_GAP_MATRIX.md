@@ -373,12 +373,13 @@ Legend — **STATUS:** ✅ Implemented · 🟡 Partial (data-model/UI sketch) ·
 
 ---
 
-## CLOSING NOTES (Phase 0 complete)
+## CLOSING NOTES (Phase 0 complete; baseline restored 2026-08-30)
 
-This is the **audit deliverable** required by Master Prompt §109. No production code has been changed in this phase — the instruction was to audit first, and that is complete. The immediate next steps, in order, are:
+This is the **audit deliverable** required by Master Prompt §109. The audit is complete and the following immediate remediation has been executed:
 
-1. **Rotate the exposed credentials** (owner action) and **purge them from git history** + add `.gitignore`.
-2. Restore a green baseline build (fix `tsconfig.json`, remove dead Next.js file).
-3. Begin **Phase 1** (identity/authn/authz/tenant foundation) per the sequence above.
+1. ✅ **Secrets purged** — `.env`, `.env.local`, and two credential `.txt` dumps removed and **rewritten out of git history** on the active branch; `.gitignore` added. Owner must **rotate** the DB password/Supabase keys and purge `origin/main` (see `docs/SECRETS_REMEDIATION.md`).
+2. ✅ **Green baseline build restored** — fixed malformed `tsconfig.json` (added `"jsx": "react-jsx"`, repaired JSON), removed dead Next.js scaffolding (`src/app/`, `src/utils/supabase/`), fixed 5 type errors. `tsc --noEmit` PASS, `vite build` PASS.
+3. ✅ **Test suite established** — added vitest + `npm test`; 9 tests PASS (RBAC foundation + class util).
+4. 🔜 **Phase 1** (identity/authn/authz/tenant foundation) is the next milestone.
 
 All claims in this report are traceable to the evidence enumerated. No requirement is marked implemented without supporting artifacts.

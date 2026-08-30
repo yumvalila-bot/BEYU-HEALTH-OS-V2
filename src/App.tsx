@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { testSupabase } from "./services/supabaseTest";
 
 import { Landing } from "./views/Landing";
 import { Login } from "./views/Login";

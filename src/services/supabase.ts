@@ -126,10 +126,6 @@ export interface NhifClaimRow {
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') || 'http://localhost:3000';
 const API_SUPABASE_BASE = `${API_BASE_URL}/api/supabase`;
 
-interface ApiResponse<T> {
-  data: T;
-}
-
 async function apiRequest<T>(path: string, init: RequestInit = {}) {
   const url = `${API_SUPABASE_BASE}${path}`;
   const headers = {
@@ -179,7 +175,7 @@ export async function getSupabaseHealth(): Promise<SupabaseStatus> {
 
 export async function fetchFromTable<T>(
   table: string,
-  columns = '*',
+  _columns = '*',
   options?: { limit?: number; orderBy?: string; ascending?: boolean },
 ) {
   const params = new URLSearchParams();

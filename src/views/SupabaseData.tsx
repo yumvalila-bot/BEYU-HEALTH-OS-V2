@@ -95,7 +95,7 @@ function validateEditForm(table: TableKey, form: Record<string, unknown>): FormE
 }
 
 export function SupabaseDataScreen() {
-  const [activeTab, setActiveTab] = useState<TableKey>("patients");
+  const [activeTab] = useState<TableKey>("patients");
   const [tables, setTables] = useState<Record<TableKey, TableState>>({
     patients: initialState,
     appointments: initialState,
@@ -140,6 +140,11 @@ export function SupabaseDataScreen() {
   }, []);
 
   const current = tables[activeTab];
+
+  const linkedAppointments: RecordRow[] =
+    patientDetail.patient && Array.isArray((patientDetail.patient as RecordRow).appointments)
+      ? ((patientDetail.patient as RecordRow).appointments as RecordRow[])
+      : [];
 
   const columns = useMemo(() => {
     const values = new Set<string>();
@@ -444,9 +449,9 @@ export function SupabaseDataScreen() {
               </div>
               <div>
                 <div className="mb-2 font-semibold text-slate-900">Linked appointments</div>
-                {Array.isArray((patientDetail.patient as RecordRow).appointments) && (patientDetail.patient as RecordRow).appointments!.length > 0 ? (
+                {linkedAppointments.length > 0 ? (
                   <div className="space-y-2">
-                    {(patientDetail.patient as RecordRow).appointments!.map((appointment: RecordRow, index: number) => {
+                    {linkedAppointments.map((appointment: RecordRow, index: number) => {
                       const isEditingAppointment = appointmentEditId === String(appointment.id ?? "");
                       return (
                         <div key={`${String(appointment.id ?? index)}`} className="rounded-lg border border-slate-200 p-2">
