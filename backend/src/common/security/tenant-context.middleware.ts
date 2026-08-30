@@ -1,6 +1,6 @@
-import { Injectable, NestMiddleware } from '@nestjs/common';
-import { NextFunction, Request, Response } from 'express';
-import { tenantStorage } from './tenant-context';
+import { Injectable, NestMiddleware } from "@nestjs/common";
+import { NextFunction, Request, Response } from "express";
+import { tenantStorage } from "./tenant-context";
 
 /**
  * Establishes an AsyncLocalStorage store for each request so that an

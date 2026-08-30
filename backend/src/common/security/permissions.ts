@@ -110,7 +110,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     id: "trustee",
     label: "Trustee · BEYU Family Trust",
     cadre: "Constitutional",
-    description: "Supreme constitutional authority. Read-only on PHI by design; full veto on governance.",
+    description:
+      "Supreme constitutional authority. Read-only on PHI by design; full veto on governance.",
     permissions: [
       "audit:read",
       "audit:export",
@@ -127,7 +128,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     id: "board",
     label: "Board Member · Holding Co.",
     cadre: "Governance",
-    description: "Strategic governance. No PHI access. Board voting + approvals.",
+    description:
+      "Strategic governance. No PHI access. Board voting + approvals.",
     permissions: [
       "audit:read",
       "rbac:read",
@@ -209,7 +211,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     id: "nurse",
     label: "Nurse / Ward Officer",
     cadre: "Clinical",
-    description: "Bedside care + medication administration. PHI scoped to ward.",
+    description:
+      "Bedside care + medication administration. PHI scoped to ward.",
     permissions: [
       "patient:read",
       "phi:read",
@@ -314,7 +317,13 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     label: "Accountant / Finance",
     cadre: "Operations",
     description: "Day-to-day finance operations.",
-    permissions: ["billing:read", "billing:write", "claim:submit", "payment:receive", "inventory:read"],
+    permissions: [
+      "billing:read",
+      "billing:write",
+      "claim:submit",
+      "payment:receive",
+      "inventory:read",
+    ],
   },
   {
     id: "procurement",
@@ -328,14 +337,27 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     label: "AI Safety Officer",
     cadre: "Governance",
     description: "Monitors Hive Runtime + can throttle agents.",
-    permissions: ["ai:configure", "ai:override", "ai:killswitch", "audit:read", "audit:export", "rbac:read"],
+    permissions: [
+      "ai:configure",
+      "ai:override",
+      "ai:killswitch",
+      "audit:read",
+      "audit:export",
+      "rbac:read",
+    ],
   },
   {
     id: "auditor",
     label: "Internal / External Auditor",
     cadre: "Governance",
     description: "Read-only auditor with full audit + de-identified PHI scope.",
-    permissions: ["audit:read", "audit:export", "rbac:read", "billing:read", "tenant:switch"],
+    permissions: [
+      "audit:read",
+      "audit:export",
+      "rbac:read",
+      "billing:read",
+      "tenant:switch",
+    ],
   },
   {
     id: "patient",

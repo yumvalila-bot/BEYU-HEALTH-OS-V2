@@ -128,3 +128,30 @@ Builds: backend `npm run build` PASS; frontend `npm run build` PASS; `tsc --noEm
 - **BLOCKED BY (external):** no standalone PostgreSQL server or Docker in the build sandbox; no MFA provider configured.
 - **REQUIRED OWNER ACTION:** rotate the previously-compromised Postgres password and Supabase keys (see `SECRETS_REMEDIATION.md`); purge `origin/main` history; supply a real `DATABASE_URL` for production boot; connect an MFA provider to enable step-up.
 - **UNVERIFIED:** live browser E2E against a real DB; Postgres RLS policy effectiveness; real MFA enrollment/verification.
+
+---
+
+## 19. Phase 1B addendum (2026-08-30)
+
+Phase 1B (production hardening) resolves several items previously deferred here.
+Authoritative detail: `docs/PHASE_1B_PRODUCTION_HARDENING.md`. Notable deltas:
+
+- **DB-driven authorization freshness** — the per-request `AuthContextMiddleware`
+  now resolves role/permissions **from the database** and enforces a
+  `security_version` guard, so disabled accounts, membership revocation, and
+  role/permission changes take effect on the **next** request (401
+  `ACCOUNT_DISABLED` / `AUTHORIZATION_CHANGED` / `NO_TENANT_MEMBERSHIP`).
+  This supersedes the §17 note about in-memory-only permission enforcement.
+- **RLS implemented + verified** — policies added on `tenants`,
+  `tenant_memberships`, `sessions`, `auth_events` and enforced for a non-owner
+  role (`rls-isolation.spec.ts`); owner-bypass documented as the
+  authorization-before-privileged-access pattern. Supersedes the §16/§17 RLS notes.
+- **Backend lint configured** — `.eslintrc.js` added; `npm run lint` clean.
+  Supersedes the §17 lint note.
+- **Health liveness/readiness** — `/health/live` (dependency-free) and
+  `/health/ready` (reflects DB, 503 on failure).
+- **CSRF** — `SameSite=Lax` + `CsrfOriginGuard` on cookie-consuming endpoints.
+- **Structured logging** — `JsonLogger` with secret redaction.
+
+Test totals at Phase 1B close: **60 backend tests / 10 suites** (real PG16 via
+PGlite), lint clean, build clean.

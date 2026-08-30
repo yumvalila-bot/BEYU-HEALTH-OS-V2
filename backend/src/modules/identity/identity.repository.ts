@@ -1,11 +1,12 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { DB_CONNECTION, type DbConnection } from './db-connection';
-import { ensureIdentitySchema } from './identity-schema';
-import { Permission } from '../../common/security/permissions';
+import { Inject, Injectable } from "@nestjs/common";
+import { DB_CONNECTION, type DbConnection } from "./db-connection";
+import { ensureIdentitySchema } from "./identity-schema";
+import { Permission } from "../../common/security/permissions";
 
-export type AccountStatus = 'active' | 'disabled' | 'suspended';
-export type AuthStatus = 'none' | 'mfa_enrolled' | 'mfa_verified' | 'step_up_required';
-export type SessionStatus = 'active' | 'rotated' | 'revoked' | 'expired';
+export type AccountStatus = "active" | "disabled" | "suspended";
+export type AuthStatus =
+  "none" | "mfa_enrolled" | "mfa_verified" | "step_up_required";
+export type SessionStatus = "active" | "rotated" | "revoked" | "expired";
 
 export interface StoredUser {
   global_user_id: string;
@@ -14,6 +15,7 @@ export interface StoredUser {
   password_hash: string;
   account_status: AccountStatus;
   auth_status: AuthStatus;
+  security_version: number;
   created_at: Date;
   updated_at: Date;
   last_authenticated_at: Date | null;
@@ -53,7 +55,7 @@ export interface AuthEventInput {
   globalUserId?: string | null;
   tenantId?: string | null;
   eventType: string;
-  result: 'SUCCESS' | 'FAILURE' | 'DENIED';
+  result: "SUCCESS" | "FAILURE" | "DENIED";
   context?: Record<string, unknown>;
 }
 
@@ -66,9 +68,12 @@ function mapUser(row: Record<string, unknown>): StoredUser {
     password_hash: String(row.password_hash),
     account_status: row.account_status as AccountStatus,
     auth_status: row.auth_status as AuthStatus,
+    security_version: Number(row.security_version ?? 0),
     created_at: new Date(row.created_at as string),
     updated_at: new Date(row.updated_at as string),
-    last_authenticated_at: row.last_authenticated_at ? new Date(row.last_authenticated_at as string) : null,
+    last_authenticated_at: row.last_authenticated_at
+      ? new Date(row.last_authenticated_at as string)
+      : null,
   };
 }
 
@@ -125,19 +130,30 @@ export class IdentityRepository {
       `INSERT INTO beyu_identity.users (email, display_name, password_hash, account_status)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [input.email.trim().toLowerCase(), input.displayName, input.passwordHash, input.accountStatus ?? 'active'],
+      [
+        input.email.trim().toLowerCase(),
+        input.displayName,
+        input.passwordHash,
+        input.accountStatus ?? "active",
+      ],
     );
     return mapUser(rows[0]);
   }
 
-  async setPasswordHash(globalUserId: string, passwordHash: string): Promise<void> {
+  async setPasswordHash(
+    globalUserId: string,
+    passwordHash: string,
+  ): Promise<void> {
     await this.conn.query(
       `UPDATE beyu_identity.users SET password_hash = $2, updated_at = now() WHERE global_user_id = $1`,
       [globalUserId, passwordHash],
     );
   }
 
-  async setAccountStatus(globalUserId: string, status: AccountStatus): Promise<void> {
+  async setAccountStatus(
+    globalUserId: string,
+    status: AccountStatus,
+  ): Promise<void> {
     await this.conn.query(
       `UPDATE beyu_identity.users SET account_status = $2, updated_at = now() WHERE global_user_id = $1`,
       [globalUserId, status],
@@ -151,6 +167,61 @@ export class IdentityRepository {
     );
   }
 
+  async getSecurityVersion(globalUserId: string): Promise<number> {
+    const rows = await this.conn.query(
+      `SELECT security_version FROM beyu_identity.users WHERE global_user_id = $1`,
+      [globalUserId],
+    );
+    return rows.length ? Number(rows[0].security_version ?? 0) : -1;
+  }
+
+  /** Bump the user's security version — invalidates outstanding access tokens. */
+  async bumpSecurityVersion(globalUserId: string): Promise<void> {
+    await this.conn.query(
+      `UPDATE beyu_identity.users SET security_version = security_version + 1, updated_at = now() WHERE global_user_id = $1`,
+      [globalUserId],
+    );
+  }
+
+  /** Revoke a tenant membership (role/power removal) and invalidate outstanding tokens. */
+  async revokeMembership(
+    globalUserId: string,
+    tenantId: string,
+  ): Promise<void> {
+    await this.conn.transaction(async (tx) => {
+      await tx.query(
+        `UPDATE beyu_identity.tenant_memberships SET status = 'revoked', updated_at = now()
+          WHERE global_user_id = $1 AND tenant_id = $2`,
+        [globalUserId, tenantId],
+      );
+      await tx.query(
+        `UPDATE beyu_identity.users SET security_version = security_version + 1, updated_at = now()
+          WHERE global_user_id = $1`,
+        [globalUserId],
+      );
+    });
+  }
+
+  /** Change a tenant membership role and invalidate outstanding tokens. */
+  async setMembershipRole(
+    globalUserId: string,
+    tenantId: string,
+    role: string,
+  ): Promise<void> {
+    await this.conn.transaction(async (tx) => {
+      await tx.query(
+        `UPDATE beyu_identity.tenant_memberships SET role = $3, status = 'active', updated_at = now()
+          WHERE global_user_id = $1 AND tenant_id = $2`,
+        [globalUserId, tenantId, role],
+      );
+      await tx.query(
+        `UPDATE beyu_identity.users SET security_version = security_version + 1, updated_at = now()
+          WHERE global_user_id = $1`,
+        [globalUserId],
+      );
+    });
+  }
+
   async recordLastAuthenticated(globalUserId: string): Promise<void> {
     await this.conn.query(
       `UPDATE beyu_identity.users SET last_authenticated_at = now() WHERE global_user_id = $1`,
@@ -159,7 +230,11 @@ export class IdentityRepository {
   }
 
   // ── Tenants ────────────────────────────────────────────────────────────────
-  async createTenant(input: { code: string; name: string; metadata?: Record<string, unknown> }): Promise<StoredTenant> {
+  async createTenant(input: {
+    code: string;
+    name: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<StoredTenant> {
     const rows = await this.conn.query(
       `INSERT INTO beyu_identity.tenants (tenant_code, name, metadata)
        VALUES ($1, $2, $3)
@@ -222,7 +297,10 @@ export class IdentityRepository {
     return this.mapMembership(rows[0]);
   }
 
-  async findActiveMembership(globalUserId: string, tenantId: string): Promise<StoredMembership | null> {
+  async findActiveMembership(
+    globalUserId: string,
+    tenantId: string,
+  ): Promise<StoredMembership | null> {
     const rows = await this.conn.query(
       `SELECT * FROM beyu_identity.tenant_memberships
        WHERE global_user_id = $1 AND tenant_id = $2 AND status = 'active'`,
@@ -253,7 +331,9 @@ export class IdentityRepository {
     return rows.map((r) => String(r.permission_id) as Permission);
   }
 
-  async allRoles(): Promise<Array<{ role_id: string; label: string; cadre: string | null }>> {
+  async allRoles(): Promise<
+    Array<{ role_id: string; label: string; cadre: string | null }>
+  > {
     const rows = await this.conn.query(
       `SELECT role_id, label, cadre FROM beyu_identity.roles ORDER BY role_id`,
     );
@@ -276,12 +356,20 @@ export class IdentityRepository {
       `INSERT INTO beyu_identity.sessions (global_user_id, tenant_id, refresh_token_hash, jti, status, expires_at)
        VALUES ($1, $2, $3, $4, 'active', $5)
        RETURNING *`,
-      [input.globalUserId, input.tenantId, input.refreshTokenHash, input.jti, input.expiresAt],
+      [
+        input.globalUserId,
+        input.tenantId,
+        input.refreshTokenHash,
+        input.jti,
+        input.expiresAt,
+      ],
     );
     return mapSession(rows[0]);
   }
 
-  async findSessionByRefreshHash(refreshTokenHash: string): Promise<StoredSession | null> {
+  async findSessionByRefreshHash(
+    refreshTokenHash: string,
+  ): Promise<StoredSession | null> {
     const rows = await this.conn.query(
       `SELECT * FROM beyu_identity.sessions WHERE refresh_token_hash = $1`,
       [refreshTokenHash],
@@ -289,7 +377,10 @@ export class IdentityRepository {
     return rows.length ? mapSession(rows[0]) : null;
   }
 
-  async updateSessionStatus(sessionId: string, status: SessionStatus): Promise<void> {
+  async updateSessionStatus(
+    sessionId: string,
+    status: SessionStatus,
+  ): Promise<void> {
     await this.conn.query(
       `UPDATE beyu_identity.sessions SET status = $2, updated_at = now() WHERE session_id = $1`,
       [sessionId, status],

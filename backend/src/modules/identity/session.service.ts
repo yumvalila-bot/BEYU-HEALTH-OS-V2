@@ -1,6 +1,6 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { createHash, randomUUID } from 'crypto';
-import { IdentityRepository, StoredSession } from './identity.repository';
+import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { createHash, randomUUID } from "crypto";
+import { IdentityRepository, StoredSession } from "./identity.repository";
 
 /**
  * Persistent session management with:
@@ -15,7 +15,7 @@ export class SessionService {
   constructor(private readonly repo: IdentityRepository) {}
 
   hashToken(token: string): string {
-    return createHash('sha256').update(token).digest('hex');
+    return createHash("sha256").update(token).digest("hex");
   }
 
   async createSession(input: {
@@ -49,27 +49,30 @@ export class SessionService {
 
     // Reuse detection: no active session matches the presented token.
     if (!session) {
-      throw new UnauthorizedException('INVALID_SESSION');
+      throw new UnauthorizedException("INVALID_SESSION");
     }
-    if (session.status !== 'active') {
+    if (session.status !== "active") {
       // A previously rotated/revoked token was replayed → revoke the family.
       await this.repo.revokeSessionFamily(session.session_id);
       await this.repo.recordAuthEvent({
         globalUserId: session.global_user_id,
         tenantId: session.tenant_id,
-        eventType: 'session_reuse_detected',
-        result: 'DENIED',
-        context: { reason: 'refresh token reuse', sessionId: session.session_id },
+        eventType: "session_reuse_detected",
+        result: "DENIED",
+        context: {
+          reason: "refresh token reuse",
+          sessionId: session.session_id,
+        },
       });
-      throw new UnauthorizedException('SESSION_REUSE_DETECTED');
+      throw new UnauthorizedException("SESSION_REUSE_DETECTED");
     }
     if (new Date(session.expires_at).getTime() < Date.now()) {
-      await this.repo.updateSessionStatus(session.session_id, 'expired');
-      throw new UnauthorizedException('SESSION_EXPIRED');
+      await this.repo.updateSessionStatus(session.session_id, "expired");
+      throw new UnauthorizedException("SESSION_EXPIRED");
     }
 
     // Mark old session as rotated and insert the new session (chained).
-    await this.repo.updateSessionStatus(session.session_id, 'rotated');
+    await this.repo.updateSessionStatus(session.session_id, "rotated");
     const created = await this.repo.createSession({
       globalUserId: session.global_user_id,
       tenantId: session.tenant_id,
@@ -80,25 +83,29 @@ export class SessionService {
     await this.repo.recordAuthEvent({
       globalUserId: session.global_user_id,
       tenantId: session.tenant_id,
-      eventType: 'token_rotation',
-      result: 'SUCCESS',
-      context: { fromSession: session.session_id, toSession: created.session_id, jti },
+      eventType: "token_rotation",
+      result: "SUCCESS",
+      context: {
+        fromSession: session.session_id,
+        toSession: created.session_id,
+        jti,
+      },
     });
     return { session: created, newRefreshToken: issuedRefreshToken };
   }
 
   /** Revoke a specific session (logout). */
-  async revokeSession(refreshToken: string, userId?: string): Promise<void> {
+  async revokeSession(refreshToken: string, _userId?: string): Promise<void> {
     const hash = this.hashToken(refreshToken);
     const session = await this.repo.findSessionByRefreshHash(hash);
     if (session) {
-      await this.repo.updateSessionStatus(session.session_id, 'revoked');
+      await this.repo.updateSessionStatus(session.session_id, "revoked");
       await this.repo.recordAuthEvent({
         globalUserId: session.global_user_id,
         tenantId: session.tenant_id,
-        eventType: 'session_revoked',
-        result: 'SUCCESS',
-        context: { reason: 'logout', sessionId: session.session_id },
+        eventType: "session_revoked",
+        result: "SUCCESS",
+        context: { reason: "logout", sessionId: session.session_id },
       });
     }
   }
@@ -108,8 +115,8 @@ export class SessionService {
     await this.repo.revokeAllUserSessions(globalUserId);
     await this.repo.recordAuthEvent({
       globalUserId,
-      eventType: 'global_logout',
-      result: 'SUCCESS',
+      eventType: "global_logout",
+      result: "SUCCESS",
     });
   }
 
@@ -117,12 +124,12 @@ export class SessionService {
   async assertSessionActive(refreshToken: string): Promise<StoredSession> {
     const hash = this.hashToken(refreshToken);
     const session = await this.repo.findSessionByRefreshHash(hash);
-    if (!session || session.status !== 'active') {
-      throw new UnauthorizedException('SESSION_INVALID');
+    if (!session || session.status !== "active") {
+      throw new UnauthorizedException("SESSION_INVALID");
     }
     if (new Date(session.expires_at).getTime() < Date.now()) {
-      await this.repo.updateSessionStatus(session.session_id, 'expired');
-      throw new UnauthorizedException('SESSION_EXPIRED');
+      await this.repo.updateSessionStatus(session.session_id, "expired");
+      throw new UnauthorizedException("SESSION_EXPIRED");
     }
     return session;
   }

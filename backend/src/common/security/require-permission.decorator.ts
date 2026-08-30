@@ -1,7 +1,7 @@
-import { SetMetadata } from '@nestjs/common';
-import { Permission } from './permissions';
+import { SetMetadata } from "@nestjs/common";
+import { Permission } from "./permissions";
 
-export const REQUIRED_PERMISSIONS_KEY = 'beyu:required-permissions';
+export const REQUIRED_PERMISSIONS_KEY = "beyu:required-permissions";
 
 /**
  * Declare the permission(s) required to access a route.

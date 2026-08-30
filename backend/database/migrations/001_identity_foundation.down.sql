@@ -1,4 +1,4 @@
--- BEYU Health OS — Identity Foundation DOWN (Phase 1A)
+-- BEYU Health OS — Identity Foundation DOWN (Phase 1B)
 -- Drops the identity schema. WARNING: destructive. Do not run on live data casually.
 
 DROP TABLE IF EXISTS beyu_identity.auth_events;

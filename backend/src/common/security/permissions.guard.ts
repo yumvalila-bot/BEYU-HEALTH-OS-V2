@@ -3,11 +3,11 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { TenantContext } from './tenant-context';
-import { REQUIRED_PERMISSIONS_KEY } from './require-permission.decorator';
-import { Permission, effectivePermissions } from './permissions';
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { TenantContext } from "./tenant-context";
+import { REQUIRED_PERMISSIONS_KEY } from "./require-permission.decorator";
+import { Permission, effectivePermissions } from "./permissions";
 
 /**
  * RBAC/ABAC enforcement at the API boundary. Reads the permission(s) declared on
@@ -32,10 +32,13 @@ export class PermissionsGuard implements CanActivate {
 
     const actor = this.tenantContext.current();
     if (!actor) {
-      throw new ForbiddenException('AUTH_REQUIRED');
+      throw new ForbiddenException("AUTH_REQUIRED");
     }
 
-    const effective = effectivePermissions(actor.role, actor.permissions as Permission[]);
+    const effective = effectivePermissions(
+      actor.role,
+      actor.permissions as Permission[],
+    );
     for (const permission of required) {
       if (!effective.has(permission)) {
         throw new ForbiddenException(

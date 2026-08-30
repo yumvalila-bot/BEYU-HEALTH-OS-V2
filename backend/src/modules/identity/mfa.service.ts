@@ -1,5 +1,5 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { IdentityRepository, AuthStatus } from './identity.repository';
+import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { IdentityRepository, AuthStatus } from "./identity.repository";
 
 /**
  * Step-up / multi-factor authentication abstraction.
@@ -19,13 +19,17 @@ export interface MfaProvider {
   /** Create an enrollment (returns a challenge/secret handle). */
   enroll(userId: string): Promise<{ challengeId: string; secret: string }>;
   /** Verify a factor assertion. Returns true only if genuinely verified. */
-  verify(userId: string, challengeId: string, assertion: string): Promise<boolean>;
+  verify(
+    userId: string,
+    challengeId: string,
+    assertion: string,
+  ): Promise<boolean>;
 }
 
 export class UnavailableMfaProvider implements MfaProvider {
-  readonly id = 'unavailable';
+  readonly id = "unavailable";
   async enroll(): Promise<never> {
-    throw new Error('MFA_PROVIDER_NOT_CONNECTED');
+    throw new Error("MFA_PROVIDER_NOT_CONNECTED");
   }
   async verify(): Promise<boolean> {
     return false;
@@ -45,17 +49,19 @@ export class MfaService {
 
   /** True when an external factor provider is actually connected. */
   providerConnected(): boolean {
-    return this.provider.id !== 'unavailable';
+    return this.provider.id !== "unavailable";
   }
 
   /** Mark a user as enrolled (post genuine enrollment). */
   async markEnrolled(globalUserId: string): Promise<void> {
-    await this.repo.setAuthStatus(globalUserId, 'mfa_enrolled');
+    await this.repo.setAuthStatus(globalUserId, "mfa_enrolled");
   }
 
-  async enroll(globalUserId: string): Promise<{ challengeId: string; secret: string }> {
+  async enroll(
+    globalUserId: string,
+  ): Promise<{ challengeId: string; secret: string }> {
     const result = await this.provider.enroll(globalUserId);
-    await this.repo.setAuthStatus(globalUserId, 'mfa_enrolled');
+    await this.repo.setAuthStatus(globalUserId, "mfa_enrolled");
     return result;
   }
 
@@ -63,25 +69,29 @@ export class MfaService {
    * Verify a step-up factor. Fails closed: without a connected provider it always
    * throws UnauthorizedException, never grants access.
    */
-  async verifyStepUp(globalUserId: string, challengeId: string, assertion: string): Promise<void> {
+  async verifyStepUp(
+    globalUserId: string,
+    challengeId: string,
+    assertion: string,
+  ): Promise<void> {
     const user = await this.repo.findUserById(globalUserId);
     if (!user) {
-      throw new UnauthorizedException('USER_NOT_FOUND');
+      throw new UnauthorizedException("USER_NOT_FOUND");
     }
     const ok = await this.provider.verify(globalUserId, challengeId, assertion);
     if (!ok) {
       await this.repo.recordAuthEvent({
         globalUserId,
-        eventType: 'mfa_failed',
-        result: 'FAILURE',
+        eventType: "mfa_failed",
+        result: "FAILURE",
       });
-      throw new UnauthorizedException('MFA_VERIFICATION_FAILED');
+      throw new UnauthorizedException("MFA_VERIFICATION_FAILED");
     }
-    await this.repo.setAuthStatus(globalUserId, 'mfa_verified');
+    await this.repo.setAuthStatus(globalUserId, "mfa_verified");
     await this.repo.recordAuthEvent({
       globalUserId,
-      eventType: 'mfa_verified',
-      result: 'SUCCESS',
+      eventType: "mfa_verified",
+      result: "SUCCESS",
       context: { provider: this.provider.id },
     });
   }
@@ -90,17 +100,20 @@ export class MfaService {
   async requireStepUp(globalUserId: string): Promise<void> {
     const user = await this.repo.findUserById(globalUserId);
     if (!user) {
-      throw new UnauthorizedException('USER_NOT_FOUND');
+      throw new UnauthorizedException("USER_NOT_FOUND");
     }
     // Fails closed unless the user has genuinely verified a factor.
-    if (user.auth_status !== 'mfa_verified') {
+    if (user.auth_status !== "mfa_verified") {
       await this.repo.recordAuthEvent({
         globalUserId,
-        eventType: 'step_up_denied',
-        result: 'DENIED',
-        context: { reason: 'step-up not verified', current: user.auth_status as AuthStatus },
+        eventType: "step_up_denied",
+        result: "DENIED",
+        context: {
+          reason: "step-up not verified",
+          current: user.auth_status as AuthStatus,
+        },
       });
-      throw new UnauthorizedException('STEP_UP_REQUIRED');
+      throw new UnauthorizedException("STEP_UP_REQUIRED");
     }
   }
 }

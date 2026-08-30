@@ -383,3 +383,30 @@ This is the **audit deliverable** required by Master Prompt §109. The audit is 
 4. 🔜 **Phase 1** (identity/authn/authz/tenant foundation) is the next milestone.
 
 All claims in this report are traceable to the evidence enumerated. No requirement is marked implemented without supporting artifacts.
+
+---
+
+## PHASE 1B SECURITY MATRIX & STATUS (2026-08-30)
+
+Authoritative phase report: `docs/PHASE_1B_PRODUCTION_HARDENING.md`. Phase 1A
+(persistent identity/authn/authz/session/audit) and Phase 1B (production
+hardening) are implemented, tested on a genuine PostgreSQL 16 engine (PGlite),
+and documented.
+
+| Control | Mitigation | Evidence / Status |
+|---|---|---|
+| Token-theft revocation (freshness) | `security_version` guard + DB-driven role/permission lookup per request | `auth-context.middleware.spec.ts` · `GREEN` |
+| Disabled-account enforcement | `account_status` checked from DB on every request | `auth-context.middleware.spec.ts` · `GREEN` |
+| Membership revocation | `revokeMembership` bumps sv; no-membership ⇒ 401 | `auth-context.middleware.spec.ts` · `GREEN` |
+| Tenant isolation (app layer) | RBAC + tenant scope, deny-by-default, `run()`-scoped context | Phase 1A + Phase 1B · `GREEN` |
+| Tenant isolation (DB layer) | RLS policies on tenant-scoped tables; verified as non-owner role | `rls-isolation.spec.ts` · `GREEN` |
+| CSRF | `httpOnly`+`SameSite=Lax` cookie + Origin/Sec-Fetch-Site guard | `csrf-origin.guard.spec.ts` · `GREEN` |
+| Cookie flags | `httpOnly`, `Secure` (prod), `SameSite=Lax`, `path=/` | code review · `GREEN` |
+| Secret handling | purged from active-branch history; `.gitignore`d | active branch clean · `origin/main` **owner rotation/purge** |
+| Fail-closed readiness | `/health/ready` reflects DB; 503 on failure | `health.service.spec.ts` · `GREEN` |
+| Liveness independent of DB | `/health/live` never depends on downstream | `health.service.spec.ts` · `GREEN` |
+| Structured logging, no secrets/PII | `JsonLogger` redacts secret keys | `json-logger.spec.ts` · `GREEN` |
+| Migration source-of-truth | regenerated from `identity-schema.ts`; consistency test | `migration-consistency.spec.ts` · `GREEN` |
+| MFA | fail-closed interface documented; provider **not** wired | external item · `BLOCKED` |
+| Live-DB boot / live E2E | no DB infra in environment | `BLOCKED` |
+| Backend lint | `.eslintrc.js` added; `npm run lint` clean | `GREEN` |

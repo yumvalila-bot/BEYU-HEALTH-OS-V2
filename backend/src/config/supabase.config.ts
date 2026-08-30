@@ -1,14 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 @Injectable()
 export class SupabaseConfig {
   private supabase: SupabaseClient | undefined;
 
   constructor(private configService: ConfigService) {
-    const url = this.configService.get<string>('SUPABASE_URL');
-    const key = this.configService.get<string>('SUPABASE_SERVICE_KEY');
+    const url = this.configService.get<string>("SUPABASE_URL");
+    const key = this.configService.get<string>("SUPABASE_SERVICE_KEY");
     if (url && key) {
       this.supabase = createClient(url, key);
     }
@@ -19,11 +19,11 @@ export class SupabaseConfig {
   }
 
   getUrl(): string | undefined {
-    return this.configService.get<string>('SUPABASE_URL');
+    return this.configService.get<string>("SUPABASE_URL");
   }
 
   getServiceKey(): string | undefined {
-    return this.configService.get<string>('SUPABASE_SERVICE_KEY');
+    return this.configService.get<string>("SUPABASE_SERVICE_KEY");
   }
 
   /**
@@ -32,6 +32,6 @@ export class SupabaseConfig {
    * service-role key is never used for app traffic.
    */
   getAnonKey(): string | undefined {
-    return this.configService.get<string>('SUPABASE_ANON_KEY');
+    return this.configService.get<string>("SUPABASE_ANON_KEY");
   }
 }

@@ -1,6 +1,11 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
-import { TenantContext } from './tenant-context';
-import { hasPermission } from './permissions';
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+} from "@nestjs/common";
+import { TenantContext } from "./tenant-context";
+import { hasPermission } from "./permissions";
 
 /**
  * Tenant isolation guard. Enforces that a request cannot read or write data
@@ -24,7 +29,7 @@ export class TenantScopeGuard implements CanActivate {
     const actor = this.tenantContext.require();
     const req = context.switchToHttp().getRequest();
     const requestedTenant =
-      req.headers?.['x-tenant-id'] ||
+      req.headers?.["x-tenant-id"] ||
       req.params?.tenantId ||
       req.query?.tenantId ||
       undefined;
@@ -39,7 +44,7 @@ export class TenantScopeGuard implements CanActivate {
     }
 
     // Cross-tenant request: must hold tenant:switch authority.
-    if (!hasPermission(actor.role, 'tenant:switch')) {
+    if (!hasPermission(actor.role, "tenant:switch")) {
       throw new ForbiddenException(
         `FORBIDDEN: tenant '${requestedTenant}' is outside your authorized scope`,
       );

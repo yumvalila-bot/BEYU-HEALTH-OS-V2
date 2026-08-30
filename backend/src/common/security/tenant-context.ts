@@ -1,5 +1,5 @@
-import { Injectable, Scope } from '@nestjs/common';
-import { AsyncLocalStorage } from 'async_hooks';
+import { Injectable, Scope } from "@nestjs/common";
+import { AsyncLocalStorage } from "async_hooks";
 
 /**
  * The authenticated actor context attached to every request. Populated by the
@@ -24,9 +24,10 @@ export interface ActorContext {
 }
 
 /**
- * Shared async storage. A store is established per request by the global
- * TenantContextMiddleware; the JwtAuthGuard then enters the authenticated actor
- * via `enterWith` so the whole downstream pipeline reads the correct context.
+ * Shared async storage. The authenticated actor is established per request by
+ * the global AuthContextMiddleware via `run(...)` (NOT `enterWith`), so the
+ * context is scoped to the request's async chain and can never leak into other
+ * requests or async work. Downstream guards and services read the context.
  */
 export const tenantStorage = new AsyncLocalStorage<ActorContext | null>();
 
@@ -41,7 +42,7 @@ export class TenantContext {
   require(): ActorContext {
     const ctx = this.current();
     if (!ctx) {
-      throw new Error('AUTH_REQUIRED');
+      throw new Error("AUTH_REQUIRED");
     }
     return ctx;
   }
@@ -51,7 +52,22 @@ export class TenantContext {
     return this.require().tenantId;
   }
 
-  /** Set the actor for the current async context (called by JwtAuthGuard). */
+  /**
+   * Run `fn` with `actor` established for the current request's async chain.
+   * Async operations created during `fn` (including downstream middleware,
+   * guards, and handlers scheduled via `next()`) inherit the actor. After
+   * `fn` completes the store is cleared — no leakage to other requests.
+   * This is the recommended entry point (avoids the leak-prone `enterWith`).
+   */
+  run<T>(actor: ActorContext, fn: () => T): T {
+    return tenantStorage.run(actor, fn);
+  }
+
+  /**
+   * Set the actor for the current async context (used by guards/specs).
+   * Prefer `run` where possible; `enterWith` persists for the current async
+   * resource and its continuations and must not be used to span requests.
+   */
   enterWith(actor: ActorContext): void {
     tenantStorage.enterWith(actor);
   }

@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { IdentityRepository, AuthEventInput } from './identity.repository';
+import { Injectable } from "@nestjs/common";
+import { IdentityRepository, AuthEventInput } from "./identity.repository";
 
 /**
  * Persistent security/audit event service. Every important identity/authorization

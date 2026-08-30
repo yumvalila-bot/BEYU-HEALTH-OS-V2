@@ -1,10 +1,14 @@
-import { Module, Global } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { PgConnection, DB_CONNECTION, type DbConnection } from './db-connection';
-import { IdentityRepository } from './identity.repository';
-import { SessionService } from './session.service';
-import { AuditService } from './audit.service';
-import { MfaService } from './mfa.service';
+import { Module, Global } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import {
+  PgConnection,
+  DB_CONNECTION,
+  type DbConnection,
+} from "./db-connection";
+import { IdentityRepository } from "./identity.repository";
+import { SessionService } from "./session.service";
+import { AuditService } from "./audit.service";
+import { MfaService } from "./mfa.service";
 
 /**
  * Identity foundation module — owns the persistent identity repositories and
@@ -19,13 +23,13 @@ import { MfaService } from './mfa.service';
       inject: [ConfigService],
       useFactory: (config: ConfigService): DbConnection => {
         const connectionString =
-          config.get<string>('DATABASE_URL') ||
-          `postgres://${config.get('DB_USERNAME', 'postgres')}:${config.get(
-            'DB_PASSWORD',
-            '',
-          )}@${config.get('DB_HOST', 'localhost')}:${config.get('DB_PORT', 5432)}/${config.get(
-            'DB_DATABASE',
-            'beyu_health',
+          config.get<string>("DATABASE_URL") ||
+          `postgres://${config.get("DB_USERNAME", "postgres")}:${config.get(
+            "DB_PASSWORD",
+            "",
+          )}@${config.get("DB_HOST", "localhost")}:${config.get("DB_PORT", 5432)}/${config.get(
+            "DB_DATABASE",
+            "beyu_health",
           )}`;
         return new PgConnection({ connectionString });
       },
@@ -35,6 +39,12 @@ import { MfaService } from './mfa.service';
     AuditService,
     MfaService,
   ],
-  exports: [DB_CONNECTION, IdentityRepository, SessionService, AuditService, MfaService],
+  exports: [
+    DB_CONNECTION,
+    IdentityRepository,
+    SessionService,
+    AuditService,
+    MfaService,
+  ],
 })
 export class IdentityModule {}

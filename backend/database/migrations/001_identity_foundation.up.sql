@@ -1,5 +1,7 @@
--- BEYU Health OS — Identity Foundation (Phase 1A)
+-- BEYU Health OS — Identity Foundation (Phase 1B)
 -- Generated from identity-schema.ts (single source of truth). Deterministic, idempotent.
+-- Includes: users.security_version (authorization-freshness guard) and Row-Level
+-- Security policies on tenant-scoped tables (defense-in-depth for non-owner roles).
 
 
 CREATE SCHEMA IF NOT EXISTS beyu_identity;
@@ -12,6 +14,7 @@ CREATE TABLE IF NOT EXISTS beyu_identity.users (
   password_hash    text NOT NULL,
   account_status   text NOT NULL DEFAULT 'active',  -- active | disabled | suspended
   auth_status      text NOT NULL DEFAULT 'none',    -- none | mfa_enrolled | mfa_verified | step_up_required
+  security_version integer NOT NULL DEFAULT 0,      -- bumped on disable / role / membership / permission change
   created_at       timestamptz NOT NULL DEFAULT now(),
   updated_at       timestamptz NOT NULL DEFAULT now(),
   last_authenticated_at timestamptz
@@ -87,6 +90,35 @@ CREATE TABLE IF NOT EXISTS beyu_identity.auth_events (
 CREATE INDEX IF NOT EXISTS idx_auth_events_user ON beyu_identity.auth_events(global_user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_auth_events_tenant ON beyu_identity.auth_events(tenant_id, created_at);
 
+-- ── ROW-LEVEL SECURITY (database-boundary defense-in-depth) ──────────────────
+-- The application enforces tenant isolation in middleware/guards BEFORE it uses
+-- a privileged connection, which (as table owner) BYPASSES RLS by design — this
+-- is the "authorization before privileged access" pattern. RLS below provides an
+-- additional hard isolation boundary for any NON-OWNER role connecting to the
+-- database: such a role can only see/modify rows whose tenant matches the
+-- server-set session variable app.tenant_id. This prevents accidental
+-- service-role-style bypasses at the data layer.
+ALTER TABLE beyu_identity.tenants ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenants_isolation ON beyu_identity.tenants
+  USING (current_setting('app.tenant_id', true) = tenant_id::text);
+
+ALTER TABLE beyu_identity.tenant_memberships ENABLE ROW LEVEL SECURITY;
+CREATE POLICY memberships_isolation ON beyu_identity.tenant_memberships
+  USING (current_setting('app.tenant_id', true) = tenant_id::text)
+  WITH CHECK (current_setting('app.tenant_id', true) = tenant_id::text);
+
+ALTER TABLE beyu_identity.sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY sessions_isolation ON beyu_identity.sessions
+  USING (current_setting('app.tenant_id', true) = tenant_id::text);
+
+ALTER TABLE beyu_identity.auth_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY auth_events_isolation ON beyu_identity.auth_events
+  USING (current_setting('app.tenant_id', true) = tenant_id::text);
+
+-- NOTE: users, roles, permissions and role_permissions are NOT tenant-scoped
+-- (users are global identity; roles/permissions are platform reference data) so
+-- they intentionally have no tenant RLS policy. Access to them is governed by
+-- the application authorization layer only.
 
 -- Seed roles/permissions:
 INSERT INTO beyu_identity.roles (role_id, label, cadre) VALUES ('trustee', 'Trustee · BEYU Family Trust', 'Constitutional') ON CONFLICT (role_id) DO NOTHING;
