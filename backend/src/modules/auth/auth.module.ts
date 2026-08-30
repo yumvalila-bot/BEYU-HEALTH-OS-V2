@@ -17,7 +17,11 @@ import { CsrfOriginGuard } from "../../common/security/csrf-origin.guard";
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
         secret: configService.get("JWT_SECRET", "dev-only-change-me"),
-        signOptions: { expiresIn: configService.get("JWT_EXPIRATION", "15m") },
+        signOptions: {
+          expiresIn: configService.get("JWT_EXPIRATION", "15m"),
+          issuer: configService.get("JWT_ISSUER"),
+          audience: configService.get("JWT_AUDIENCE"),
+        },
       }),
       inject: [ConfigService],
     }),

@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeAll, afterAll, jest } from "@jest/globals";
 import { PGlite } from "@electric-sql/pglite";
 import { JwtService } from "@nestjs/jwt";
+import { ConfigService } from "@nestjs/config";
 import { UnauthorizedException } from "@nestjs/common";
 import { PGliteConnection } from "../../modules/identity/db-connection";
 import { IdentityRepository } from "../../modules/identity/identity.repository";
@@ -73,7 +74,13 @@ describe("AuthContextMiddleware (DB-driven authorization freshness)", () => {
     audit = new AuditService(repo);
     tenant = new TenantContext();
     jwt = new JwtService({ secret: SECRET, signOptions: { expiresIn: "15m" } });
-    middleware = new AuthContextMiddleware(jwt, repo, audit, tenant);
+    middleware = new AuthContextMiddleware(
+      jwt,
+      repo,
+      audit,
+      tenant,
+      new ConfigService({}),
+    );
     const ta = await repo.createTenant({ code: "TENANT-A", name: "A" });
     tenantAId = ta.tenant_id;
   });
@@ -142,5 +149,47 @@ describe("AuthContextMiddleware (DB-driven authorization freshness)", () => {
     await enter(null);
     // No actor should have been established for this (fresh) async chain.
     expect(tenant.current()).toBeNull();
+  });
+
+  it("enforces configured issuer/audience on the access token", async () => {
+    const doctorId = await freshDoctor();
+    const sv = await repo.getSecurityVersion(doctorId);
+    const cfg = new ConfigService({
+      JWT_ISSUER: "beyu",
+      JWT_AUDIENCE: "beyu-api",
+    });
+    const mw = new AuthContextMiddleware(
+      jwt,
+      repo,
+      audit,
+      new TenantContext(),
+      cfg,
+    );
+
+    // Token signed WITHOUT issuer/audience → rejected (no actor established).
+    const plain = signToken(doctorId, sv, tenantAId);
+    let actorPlain: ActorContext | null = "sentinel" as any;
+    await mw.use(makeRequest(plain), {} as any, () => {
+      actorPlain = tenant.current();
+    });
+    expect(actorPlain).toBeNull();
+
+    // Token signed WITH matching issuer/audience → accepted.
+    const good = jwt.sign(
+      {
+        sub: doctorId,
+        email: "doc@a.example",
+        role: "doctor",
+        tenantId: tenantAId,
+        sv,
+      },
+      { secret: SECRET, issuer: "beyu", audience: "beyu-api" },
+    );
+    let actor: ActorContext | null = null;
+    await mw.use(makeRequest(good), {} as any, () => {
+      actor = tenant.current();
+    });
+    expect(actor).not.toBeNull();
+    expect(actor!.userId).toBe(doctorId);
   });
 });

@@ -1,5 +1,10 @@
 # BEYU Health OS — Phase 1B: Production Hardening
 
+> **Follow-up:** Phase 1C (production acceptance) supersedes this phase's status
+> for the overall readiness gate. See `docs/PHASE_1C_PRODUCTION_ACCEPTANCE.md`.
+> In Phase 1C the leaked DB **hostname** referenced in this document was redacted
+> to `<REDACTED_DB_HOST>`.
+
 **Status:** Implemented → Tested → Verified, with honestly-scoped external/owner limits.
 **Branch:** `arena/01a05116-health-os-1-0` (off `main` @ `69883d6`).
 **Overall Phase 1B status:** `GREEN WITH EXTERNAL DEPENDENCIES` (core hardening is
@@ -18,7 +23,7 @@ A fresh audit of the environment found **no live database to connect to**:
 
 - No `DATABASE_URL` / `DB_*` / Supabase env vars in the shell; no `.env` file.
 - No Docker, no local PostgreSQL packages/binaries, no listener on `:5432`.
-- `db.txcqhrhmrediiraljbbu.supabase.co` does not resolve (DNS failure).
+- `<REDACTED_DB_HOST>` does not resolve (DNS failure).
 
 **Implication:** a true "boot the API against a deployed Supabase/Postgres and
 run live E2E" gate cannot be executed here. This is **not** converted to a pass;
@@ -152,7 +157,7 @@ formatting was applied repo-wide for consistency.
   ancestor; `git log HEAD -- .env .env.local …` returns nothing).
 - **`origin/main` (default remote branch @ `69883d6`):** **still contains live
   credentials** that were committed in that base commit:
-  - `.env` → `postgresql://postgres:<password>@db.txcqhrhmrediiraljbbu.supabase.co:5432/postgres`
+  - `.env` → `postgresql://postgres:<password>@<REDACTED_DB_HOST>:5432/postgres`
   - `.env.local` → Supabase URL + publishable key
   - `NEXT_PUBLIC_SUPABASE_URL=httpssiyzy.txt` and
     `VITE_SUPABASE_URL=httpstxcqhrhmredi.txt` → Supabase URL + publishable/anon key,

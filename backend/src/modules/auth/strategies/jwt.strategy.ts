@@ -16,10 +16,15 @@ export interface JwtPayload {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(configService: ConfigService) {
+    const issuer = configService.get<string>("JWT_ISSUER");
+    const audience = configService.get<string>("JWT_AUDIENCE");
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: configService.get("JWT_SECRET", "dev-only-change-me"),
+      // Enforced only when configured (backward compatible, stronger in prod).
+      issuer: issuer || undefined,
+      audience: audience || undefined,
     });
   }
 

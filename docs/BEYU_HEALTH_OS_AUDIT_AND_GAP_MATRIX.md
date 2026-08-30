@@ -410,3 +410,30 @@ and documented.
 | MFA | fail-closed interface documented; provider **not** wired | external item · `BLOCKED` |
 | Live-DB boot / live E2E | no DB infra in environment | `BLOCKED` |
 | Backend lint | `.eslintrc.js` added; `npm run lint` clean | `GREEN` |
+
+---
+
+## PHASE 1C PRODUCTION ACCEPTANCE STATUS (2026-08-30)
+
+Authoritative report: `docs/PHASE_1C_PRODUCTION_ACCEPTANCE.md`.
+
+**Overall: `BLOCKED`.** The identity foundation is implemented and its
+mechanisms are verified on a real PostgreSQL 16 engine (PGlite): 61 backend
+tests / 10 suites, 14 frontend tests, build + lint + typecheck green. New Phase
+1C hardening added and tested: config-driven JWT `issuer`/`audience` validation,
+and a boot-time fail-closed production guard (non-default `JWT_SECRET` /
+`JWT_REFRESH_SECRET`, explicit non-localhost `CORS_ORIGIN`).
+
+**Security-critical live gates remain BLOCKED (external/owner):**
+- Live PostgreSQL/Supabase connectivity — no `DATABASE_URL`, DNS does not resolve.
+- Live RLS / live authn / authz / tenant isolation / session — require a deployed DB.
+- Live browser E2E — no running backend/database.
+- MFA provider — none integrated (fail-closed only).
+- Credential rotation + Git history purge — compromised DB password remains in
+  reachable history (incl. `docs/BEYU_HEALTH_OS_AUDIT_AND_GAP_MATRIX.md` in
+  commits `7f69400`/`b9023b1`/`f3d2898`) and the four credential files remain on
+  `origin/main` @ `69883d6`; owner rotation + force-push purge required.
+- Deployment verification — no deployment infra.
+
+**Phase 3 (Patient Master Identity): MUST REMAIN BLOCKED** until these gates are
+genuinely satisfied. See `docs/SECRETS_REMEDIATION.md`.

@@ -155,3 +155,18 @@ Authoritative detail: `docs/PHASE_1B_PRODUCTION_HARDENING.md`. Notable deltas:
 
 Test totals at Phase 1B close: **60 backend tests / 10 suites** (real PG16 via
 PGlite), lint clean, build clean.
+
+### 20. Phase 1C addendum (2026-08-30)
+
+Phase 1C (production acceptance) added two hardening items verified offline and
+recorded a BLOCKED acceptance status (see `docs/PHASE_1C_PRODUCTION_ACCEPTANCE.md`):
+
+- **JWT `issuer`/`audience`** validation, config-driven via `JWT_ISSUER` /
+  `JWT_AUDIENCE`, enforced in `JwtStrategy` and `AuthContextMiddleware`
+  (backward-compatible; enforced when configured).
+- **Boot-time fail-closed production guard** in `backend/src/main.ts`: refuses to
+  start with default/absent `JWT_SECRET`/`JWT_REFRESH_SECRET` or a
+  wildcard/localhost `CORS_ORIGIN` when `NODE_ENV=production`.
+
+Acceptance: **BLOCKED** (live deployment gates unverifiable in this environment;
+compromised credentials require owner rotation + history purge).

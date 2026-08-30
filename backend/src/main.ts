@@ -8,7 +8,43 @@ import { AppModule } from "./app.module";
 import { ConfigService } from "@nestjs/config";
 import { JsonLogger } from "./common/observability/json-logger";
 
+/**
+ * Fail-closed production configuration guard. In production the process must not
+ * boot on known/development secrets. Values are never printed.
+ */
+const INSECURE_JWT_SECRETS = new Set([
+  "dev-only-change-me",
+  "your-secret-key",
+  "your-refresh-secret",
+]);
+
+function assertProductionConfig(): void {
+  if ((process.env.NODE_ENV ?? "development") !== "production") return;
+  const jwtSecret = process.env.JWT_SECRET;
+  const refreshSecret = process.env.JWT_REFRESH_SECRET;
+  if (!jwtSecret || INSECURE_JWT_SECRETS.has(jwtSecret)) {
+    throw new Error(
+      "FATAL: JWT_SECRET must be a strong, non-default secret when NODE_ENV=production.",
+    );
+  }
+  if (!refreshSecret || INSECURE_JWT_SECRETS.has(refreshSecret)) {
+    throw new Error(
+      "FATAL: JWT_REFRESH_SECRET must be a strong, non-default secret when NODE_ENV=production.",
+    );
+  }
+  const cors = (process.env.CORS_ORIGIN ?? "").split(",").map((o) => o.trim());
+  const invalidCors =
+    cors.length === 0 ||
+    cors.some((o) => !o || o === "*" || /^https?:\/\/localhost(:|$)/.test(o));
+  if (invalidCors) {
+    throw new Error(
+      "FATAL: CORS_ORIGIN must be an explicit, non-wildcard, non-localhost allow-list when NODE_ENV=production.",
+    );
+  }
+}
+
 async function bootstrap() {
+  assertProductionConfig();
   const logger = new JsonLogger();
   const app = await NestFactory.create(AppModule, { logger });
   const configService = app.get(ConfigService);

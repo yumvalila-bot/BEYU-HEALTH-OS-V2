@@ -17,9 +17,14 @@ export default () => ({
 
   // JWT
   JWT_SECRET: process.env.JWT_SECRET || "your-secret-key",
-  JWT_EXPIRATION: process.env.JWT_EXPIRATION || "24h",
+  JWT_EXPIRATION: process.env.JWT_EXPIRATION || "15m",
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "your-refresh-secret",
   JWT_REFRESH_EXPIRATION: process.env.JWT_REFRESH_EXPIRATION || "7d",
+  // Optional issuer/audience for stronger token validation. When set, both
+  // signing and verification require them (enforced by JwtStrategy and
+  // AuthContextMiddleware).
+  JWT_ISSUER: process.env.JWT_ISSUER,
+  JWT_AUDIENCE: process.env.JWT_AUDIENCE,
 
   // Redis
   REDIS_HOST: process.env.REDIS_HOST || "localhost",

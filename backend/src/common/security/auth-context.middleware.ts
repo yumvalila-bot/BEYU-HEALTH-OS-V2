@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { NextFunction, Request } from "express";
 import { JwtService } from "@nestjs/jwt";
+import { ConfigService } from "@nestjs/config";
 import { TenantContext, ActorContext } from "./tenant-context";
 import { IdentityRepository } from "../../modules/identity/identity.repository";
 import { AuditService } from "../../modules/identity/audit.service";
@@ -46,6 +47,7 @@ export class AuthContextMiddleware implements NestMiddleware {
     private readonly repo: IdentityRepository,
     private readonly audit: AuditService,
     private readonly tenantContext: TenantContext,
+    private readonly config: ConfigService,
   ) {}
 
   async use(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -57,9 +59,13 @@ export class AuthContextMiddleware implements NestMiddleware {
 
     let claims: TokenClaims;
     try {
-      claims = this.jwtService.verify<TokenClaims>(token);
+      claims = this.jwtService.verify<TokenClaims>(token, {
+        issuer: this.config.get<string>("JWT_ISSUER") || undefined,
+        audience: this.config.get<string>("JWT_AUDIENCE") || undefined,
+      });
     } catch {
-      // Invalid/expired/forged token: leave unauthenticated; guards will deny.
+      // Invalid/expired/forged token (or wrong issuer/audience when configured):
+      // leave unauthenticated; guards will deny.
       next();
       return;
     }
