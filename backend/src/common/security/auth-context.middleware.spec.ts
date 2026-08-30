@@ -194,4 +194,52 @@ describe("AuthContextMiddleware (DB-driven authorization freshness)", () => {
     expect(actor).not.toBeNull();
     expect(actor!.userId).toBe(doctorId);
   });
+
+  it("rejects alg:none / non-HS256 tokens (algorithm confusion)", async () => {
+    const doctorId = await freshDoctor();
+    const sv = await repo.getSecurityVersion(doctorId);
+    const mw = new AuthContextMiddleware(
+      jwt,
+      repo,
+      audit,
+      new TenantContext(),
+      new ConfigService({}),
+    );
+
+    // Craft an unsigned alg:none token. The middleware must NOT accept it.
+    const now = Math.floor(Date.now() / 1000);
+    const header = Buffer.from(
+      JSON.stringify({ alg: "none", typ: "JWT" }),
+    ).toString("base64url");
+    const payload = Buffer.from(
+      JSON.stringify({
+        sub: doctorId,
+        email: "doc@a.example",
+        role: "doctor",
+        tenantId: tenantAId,
+        sv,
+        iat: now,
+        exp: now + 3600,
+      }),
+    ).toString("base64url");
+    const noneToken = `${header}.${payload}.`;
+
+    let actor: ActorContext | null = "sentinel" as any;
+    await mw.use(makeRequest(noneToken), {} as any, () => {
+      actor = tenant.current();
+    });
+    // alg:none must never establish an actor.
+    expect(actor).toBeNull();
+
+    // A token signed with a non-HS256 algorithm must also be rejected.
+    const rs256Token = jwt.sign(
+      { sub: doctorId, role: "doctor" },
+      { secret: SECRET, algorithm: "HS384" },
+    );
+    let actor2: ActorContext | null = "sentinel" as any;
+    await mw.use(makeRequest(rs256Token), {} as any, () => {
+      actor2 = tenant.current();
+    });
+    expect(actor2).toBeNull();
+  });
 });

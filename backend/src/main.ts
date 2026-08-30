@@ -32,6 +32,15 @@ function assertProductionConfig(): void {
       "FATAL: JWT_REFRESH_SECRET must be a strong, non-default secret when NODE_ENV=production.",
     );
   }
+  // Issuer and audience are REQUIRED in production: the JWT signing options
+  // reject an undefined issuer/audience, and issuing tokens without them would
+  // weaken validation. Fail closed at boot with a clear message instead of a
+  // runtime 500 on login.
+  if (!process.env.JWT_ISSUER || !process.env.JWT_AUDIENCE) {
+    throw new Error(
+      "FATAL: JWT_ISSUER and JWT_AUDIENCE must be configured when NODE_ENV=production.",
+    );
+  }
   const cors = (process.env.CORS_ORIGIN ?? "").split(",").map((o) => o.trim());
   const invalidCors =
     cors.length === 0 ||

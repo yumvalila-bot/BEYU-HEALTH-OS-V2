@@ -57,12 +57,16 @@ export class AuthService {
       accountStatus: "active",
     });
 
-    // Membership (role + tenant) is derived server-side, never from the client
-    // beyond an explicit, validated default role/tenant requested at registration.
-    let role =
-      registerDto.role && registerDto.role !== "patient"
-        ? registerDto.role
-        : "patient";
+    // Membership (role + tenant) is derived server-side, never from the client.
+    // Only a curated set of roles may be SELF-assigned at registration (today:
+    // "patient"). The role is clamped BEFORE any membership is created so a
+    // caller can never grant themselves an elevated role via the registration
+    // body — this is an authorization boundary, not just a display concern.
+    const SAFE_SELF_REGISTER_ROLES = new Set(["patient"]);
+    const requestedRole = registerDto.role ?? "patient";
+    const role = SAFE_SELF_REGISTER_ROLES.has(requestedRole)
+      ? requestedRole
+      : "patient";
     let tenantId: string | null = null;
     if (registerDto.tenantCode) {
       const tenant = await this.repo.findTenantByCode(registerDto.tenantCode);
@@ -74,11 +78,6 @@ export class AuthService {
         });
         tenantId = tenant.tenant_id;
       }
-    }
-    // Safety: only allow a curated set of self-registrable roles.
-    const SAFE_SELF_REGISTER_ROLES = new Set(["patient"]);
-    if (!SAFE_SELF_REGISTER_ROLES.has(role)) {
-      role = "patient";
     }
     if (!tenantId) {
       await this.repo.recordAuthEvent({

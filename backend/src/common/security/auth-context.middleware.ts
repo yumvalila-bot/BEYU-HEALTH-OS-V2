@@ -62,6 +62,8 @@ export class AuthContextMiddleware implements NestMiddleware {
       claims = this.jwtService.verify<TokenClaims>(token, {
         issuer: this.config.get<string>("JWT_ISSUER") || undefined,
         audience: this.config.get<string>("JWT_AUDIENCE") || undefined,
+        // Constrain to HS256 to prevent algorithm-confusion / alg:none attacks.
+        algorithms: ["HS256"],
       });
     } catch {
       // Invalid/expired/forged token (or wrong issuer/audience when configured):

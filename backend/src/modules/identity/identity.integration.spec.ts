@@ -193,6 +193,36 @@ describe("Phase 1A identity persistence (real PostgreSQL)", () => {
     ).rejects.toThrow("ACCOUNT_DISABLED");
   });
 
+  it("self-registration cannot escalate to a privileged role", async () => {
+    // A caller must never be able to grant themselves an elevated role via the
+    // registration body (privilege escalation). Any non-safe role is clamped to
+    // "patient" BEFORE a membership is created.
+    const email = `escalate-${Date.now()}@example.com`;
+    const result = await auth.register({
+      email,
+      full_name: "Escalation Attempt",
+      password: "correct-password-123",
+      role: "admin", // client attempts to self-assign admin
+      tenantCode: "TENANT-A",
+    });
+    const created = await repo.findUserByEmail(email);
+    expect(created).toBeTruthy();
+    const membership = await repo.findActiveMembership(
+      (created as any).global_user_id,
+      tenantAId,
+    );
+    // Membership role must be patient, never admin/ceo/etc.
+    expect(membership?.role).toBe("patient");
+    expect(result.message).toBeTruthy();
+    // And the freshly registered user cannot authenticate with admin powers.
+    const tokens = await auth.login({
+      email,
+      password: "correct-password-123",
+      tenantCode: "TENANT-A",
+    });
+    expect(tokens.user.role).toBe("patient");
+  });
+
   it("issues JWTs with role, tenant and unique jti claims", async () => {
     const tokens = await auth.login({
       email: "nurse@a.example",

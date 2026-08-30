@@ -25,6 +25,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // Enforced only when configured (backward compatible, stronger in prod).
       issuer: issuer || undefined,
       audience: audience || undefined,
+      // Constrain to HS256 to prevent algorithm-confusion / alg:none attacks.
+      algorithms: ["HS256"],
     });
   }
 

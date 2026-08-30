@@ -21,6 +21,8 @@ import { CsrfOriginGuard } from "../../common/security/csrf-origin.guard";
           expiresIn: configService.get("JWT_EXPIRATION", "15m"),
           issuer: configService.get("JWT_ISSUER"),
           audience: configService.get("JWT_AUDIENCE"),
+          // Constrain to HS256 to prevent algorithm-confusion / alg:none attacks.
+          algorithm: "HS256",
         },
       }),
       inject: [ConfigService],
