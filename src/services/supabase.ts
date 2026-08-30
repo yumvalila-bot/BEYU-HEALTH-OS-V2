@@ -123,17 +123,21 @@ export interface NhifClaimRow {
   updated_at?: string;
 }
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') || 'http://localhost:3000';
+import { getAccessToken } from './auth';
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') || '';
 const API_SUPABASE_BASE = `${API_BASE_URL}/api/supabase`;
 
 async function apiRequest<T>(path: string, init: RequestInit = {}) {
   const url = `${API_SUPABASE_BASE}${path}`;
+  const token = getAccessToken();
   const headers = {
     'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(init.headers as Record<string, string> | undefined),
   };
 
-  const response = await fetch(url, { ...init, headers });
+  const response = await fetch(url, { ...init, headers, credentials: 'include' });
   const text = await response.text();
   let body: unknown = null;
 

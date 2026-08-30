@@ -1,21 +1,32 @@
-import { randomUUID } from 'crypto';
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { LoginDto, RegisterDto, RefreshTokenDto } from './dto';
-import { UserRepository } from '../users/user.repository';
+import { IdentityRepository, StoredUser } from '../identity/identity.repository';
+import { SessionService } from '../identity/session.service';
+import { AuditService } from '../identity/audit.service';
+import { MfaService } from '../identity/mfa.service';
 
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
   user: {
-    id: string;
+    globalUserId: string;
     email: string;
-    fullName: string;
+    displayName: string;
     role: string;
-    tenantId: string;
+    tenantId: string | null;
   };
+}
+
+export interface LoginContext {
+  ip?: string;
+  userAgent?: string;
 }
 
 @Injectable()
@@ -23,23 +34,64 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly userRepository: UserRepository,
+    private readonly repo: IdentityRepository,
+    private readonly sessions: SessionService,
+    private readonly audit: AuditService,
+    private readonly mfa: MfaService,
   ) {}
 
+  // ── Registration ───────────────────────────────────────────────────────────
   async register(registerDto: RegisterDto) {
-    const existing = await this.userRepository.findByEmail(registerDto.email);
+    const existing = await this.repo.findUserByEmail(registerDto.email);
     if (existing) {
       throw new ConflictException('A user with this email already exists');
     }
     const passwordHash = await bcrypt.hash(registerDto.password, 12);
-    const user = await this.userRepository.create({
+    const user = await this.repo.createUser({
       email: registerDto.email,
-      fullName: registerDto.full_name,
+      displayName: registerDto.full_name,
       passwordHash,
-      role: registerDto.role ?? 'patient',
-      tenantId: registerDto.tenantId ?? 'default',
-      organizationId: registerDto.organizationId,
-      licenceNumber: registerDto.licenceNumber,
+      accountStatus: 'active',
+    });
+
+    // Membership (role + tenant) is derived server-side, never from the client
+    // beyond an explicit, validated default role/tenant requested at registration.
+    let role = registerDto.role && registerDto.role !== 'patient' ? registerDto.role : 'patient';
+    let tenantId: string | null = null;
+    if (registerDto.tenantCode) {
+      const tenant = await this.repo.findTenantByCode(registerDto.tenantCode);
+      if (tenant) {
+        await this.repo.ensureMembership({
+          globalUserId: user.global_user_id,
+          tenantId: tenant.tenant_id,
+          role,
+        });
+        tenantId = tenant.tenant_id;
+      }
+    }
+    // Safety: only allow a curated set of self-registrable roles.
+    const SAFE_SELF_REGISTER_ROLES = new Set(['patient']);
+    if (!SAFE_SELF_REGISTER_ROLES.has(role)) {
+      role = 'patient';
+    }
+    if (!tenantId) {
+      await this.repo.recordAuthEvent({
+        globalUserId: user.global_user_id,
+        eventType: 'user_registered',
+        result: 'SUCCESS',
+      });
+      return {
+        message: 'User registered successfully. Awaiting tenant membership assignment.',
+        user: this.publicUser(user),
+      };
+    }
+
+    await this.repo.recordAuthEvent({
+      globalUserId: user.global_user_id,
+      tenantId,
+      eventType: 'user_registered',
+      result: 'SUCCESS',
+      context: { role },
     });
     return {
       message: 'User registered successfully',
@@ -47,85 +99,205 @@ export class AuthService {
     };
   }
 
-  async login(loginDto: LoginDto): Promise<AuthTokens> {
-    const user = await this.userRepository.findByEmail(loginDto.email);
-    if (!user || !user.active) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-    const valid = await bcrypt.compare(loginDto.password, user.passwordHash);
-    if (!valid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-    return this.issueTokens(user);
-  }
-
-  async refreshToken(refreshTokenDto: RefreshTokenDto) {
-    try {
-      const payload = this.jwtService.verify<{ sub: string; refresh: true }>(
-        refreshTokenDto.refreshToken,
-      );
-      if (!payload?.refresh) {
-        throw new UnauthorizedException('Invalid refresh token');
-      }
-      const user = await this.userRepository.findById(payload.sub);
-      if (!user || !user.active) {
-        throw new UnauthorizedException('User no longer active');
-      }
-      return {
-        accessToken: this.jwtService.sign(
-          { email: user.email, role: user.role, tenantId: user.tenantId },
-          { subject: user.id, expiresIn: this.configService.get('JWT_EXPIRATION', '24h') },
-        ),
-      };
-    } catch {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-  }
-
-  async getUserProfile(userId: string) {
-    const user = await this.userRepository.findById(userId);
+  // ── Login ──────────────────────────────────────────────────────────────────
+  async login(loginDto: LoginDto, ctx: LoginContext = {}): Promise<AuthTokens> {
+    const user = await this.repo.findUserByEmail(loginDto.email);
+    // Generic failure to avoid account enumeration / sensitive leakage.
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      await this.audit.record({
+        eventType: 'login_failure',
+        result: 'FAILURE',
+        context: { reason: 'unknown_user', ...ctx },
+      });
+      throw new UnauthorizedException('INVALID_CREDENTIALS');
     }
-    return this.publicUser(user);
-  }
+    if (user.account_status !== 'active') {
+      await this.audit.record({
+        globalUserId: user.global_user_id,
+        eventType: 'login_denied',
+        result: 'DENIED',
+        context: { reason: 'account_disabled', status: user.account_status, ...ctx },
+      });
+      throw new UnauthorizedException('ACCOUNT_DISABLED');
+    }
+    const valid = await bcrypt.compare(loginDto.password, user.password_hash);
+    if (!valid) {
+      await this.audit.record({
+        globalUserId: user.global_user_id,
+        eventType: 'login_failure',
+        result: 'FAILURE',
+        context: { reason: 'bad_password', ...ctx },
+      });
+      throw new UnauthorizedException('INVALID_CREDENTIALS');
+    }
 
-  async logout(userId: string) {
-    // Token invalidation (revocation list) is wired here for future persistence.
-    return { message: 'Logged out successfully', userId };
-  }
+    // Tenant resolution server-side (never from client body).
+    const tenant = loginDto.tenantCode
+      ? await this.repo.findTenantByCode(loginDto.tenantCode)
+      : null;
+    const tenantId = tenant ? tenant.tenant_id : null;
 
-  private issueTokens(user: { id: string; email: string; role: string; tenantId: string }): AuthTokens {
-    const payload = {
-      email: user.email,
-      role: user.role,
-      tenantId: user.tenantId,
-      // Unique token id so every issued token is distinct (enables rotation/revocation).
-      jti: randomUUID(),
-    };
+    const { role } = await this.resolveActor(user, tenantId);
+
+    await this.repo.recordLastAuthenticated(user.global_user_id);
+    await this.audit.record({
+      globalUserId: user.global_user_id,
+      tenantId,
+      eventType: 'login_success',
+      result: 'SUCCESS',
+      context: { ...ctx, role },
+    });
+    return this.issueTokens(user, role, tenantId, ctx);
+  }
+  async refreshToken(refreshTokenDto: RefreshTokenDto, ctx: LoginContext = {}) {
+    const presented = refreshTokenDto.refreshToken;
+    const issuedRefresh = this.sessions.newJti(); // used as new raw refresh token
+    const accessJti = this.sessions.newJti();
+    const expiresAt = new Date(Date.now() + this.refreshTtlMs());
+
+    const { session } = await this.sessions.rotateSession(
+      presented,
+      issuedRefresh,
+      accessJti,
+      expiresAt,
+    );
+    const user = await this.repo.findUserById(session.global_user_id);
+    if (!user || user.account_status !== 'active') {
+      throw new UnauthorizedException('ACCOUNT_DISABLED');
+    }
+    const { role } = await this.resolveActor(user, session.tenant_id);
+
+    await this.audit.record({
+      globalUserId: user.global_user_id,
+      tenantId: session.tenant_id,
+      eventType: 'token_refresh',
+      result: 'SUCCESS',
+      context: { ...ctx, jti: accessJti },
+    });
+
     return {
-      accessToken: this.jwtService.sign(payload, {
-        subject: user.id,
-        expiresIn: this.configService.get('JWT_EXPIRATION', '24h'),
-      }),
-      refreshToken: this.jwtService.sign(
-        { ...payload, refresh: true },
-        {
-          subject: user.id,
-          expiresIn: this.configService.get('JWT_REFRESH_EXPIRATION', '7d'),
-        },
-      ),
-      user: this.publicUser(user),
+      accessToken: this.signAccessToken(user, role, session.tenant_id, accessJti),
+      refreshToken: issuedRefresh,
     };
   }
 
-  private publicUser(user: { id: string; email: string; fullName?: string; role: string; tenantId: string }) {
+  // ── Session restoration ────────────────────────────────────────────────────
+  async restoreSession(refreshToken: string) {
+    const session = await this.sessions.assertSessionActive(refreshToken);
+    const user = await this.repo.findUserById(session.global_user_id);
+    if (!user || user.account_status !== 'active') {
+      throw new UnauthorizedException('ACCOUNT_DISABLED');
+    }
+    const { role } = await this.resolveActor(user, session.tenant_id);
+    const accessJti = this.sessions.newJti();
+    await this.sessions.updateJti(session.session_id, accessJti);
     return {
-      id: user.id,
+      accessToken: this.signAccessToken(user, role, session.tenant_id, accessJti),
+      user: { ...this.publicUser(user), role, tenantId: session.tenant_id },
+    };
+  }
+
+  // ── Logout / revocation ────────────────────────────────────────────────────
+  async logout(refreshToken: string): Promise<{ message: string }> {
+    await this.sessions.revokeSession(refreshToken);
+    return { message: 'Logged out successfully' };
+  }
+
+  async logoutAll(globalUserId: string): Promise<{ message: string }> {
+    await this.sessions.revokeAllSessions(globalUserId);
+    return { message: 'All sessions revoked' };
+  }
+
+  // ── Profile ────────────────────────────────────────────────────────────────
+  async getProfile(globalUserId: string) {
+    const user = await this.repo.findUserById(globalUserId);
+    if (!user) {
+      throw new UnauthorizedException('USER_NOT_FOUND');
+    }
+    const roles = await this.repo.allRoles();
+    return {
+      ...this.publicUser(user),
+      roles,
+    };
+  }
+
+  // ── Internals ──────────────────────────────────────────────────────────────
+  private async resolveActor(
+    user: StoredUser,
+    tenantId: string | null,
+  ): Promise<{ role: string; permissions: string[] }> {
+    if (!tenantId) {
+      return { role: 'patient', permissions: [] };
+    }
+    const membership = await this.repo.findActiveMembership(user.global_user_id, tenantId);
+    if (!membership) {
+      throw new UnauthorizedException('NO_TENANT_MEMBERSHIP');
+    }
+    const permissions = await this.repo.permissionsForRole(membership.role);
+    return { role: membership.role, permissions: permissions as string[] };
+  }
+
+  private async issueTokens(
+    user: StoredUser,
+    role: string,
+    tenantId: string | null,
+    ctx: LoginContext = {},
+  ): Promise<AuthTokens> {
+    const accessJti = this.sessions.newJti();
+    const rawRefresh = this.sessions.newJti();
+    const expiresAt = new Date(Date.now() + this.refreshTtlMs());
+    // Persist the session with a hash of the refresh token BEFORE returning,
+    // so a returned refresh token is always revocable.
+    await this.sessions.createSession({
+      globalUserId: user.global_user_id,
+      tenantId,
+      refreshToken: rawRefresh,
+      jti: accessJti,
+      expiresAt,
+    });
+
+    return {
+      accessToken: this.signAccessToken(user, role, tenantId, accessJti),
+      refreshToken: rawRefresh,
+      user: {
+        globalUserId: user.global_user_id,
+        email: user.email,
+        displayName: user.display_name,
+        role,
+        tenantId,
+      },
+    };
+  }
+
+  private signAccessToken(
+    user: StoredUser,
+    role: string,
+    tenantId: string | null,
+    jti: string,
+  ): string {
+    return this.jwtService.sign(
+      {
+        email: user.email,
+        role,
+        tenantId,
+        jti,
+      },
+      {
+        subject: user.global_user_id,
+        expiresIn: this.configService.get('JWT_EXPIRATION', '15m'),
+      },
+    );
+  }
+
+  private refreshTtlMs(): number {
+    return Number(this.configService.get('JWT_REFRESH_TTL_MS', '604800000')); // 7 days
+  }
+
+  private publicUser(user: StoredUser) {
+    return {
+      globalUserId: user.global_user_id,
       email: user.email,
-      fullName: user.fullName ?? '',
-      role: user.role,
-      tenantId: user.tenantId,
+      displayName: user.display_name,
     };
   }
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { useAuth } from "./auth/AuthContext";
 import { Landing } from "./views/Landing";
 import { Login } from "./views/Login";
 import { Sidebar, TopBar, type NavItem } from "./components/Chrome";
@@ -226,6 +227,7 @@ function navBoard(): NavItem[] {
 }
 
 export default function App() {
+  const { status: authStatus, user: authUser, logout } = useAuth();
   const [stage, setStage] = useState<Stage>("landing");
   const [role, setRole] = useState<string>("ceo");
   const [tenant, setTenant] = useState<string>(TENANTS[0].id);
@@ -239,6 +241,14 @@ export default function App() {
     message: "Checking Supabase connection…",
   });
 
+  // Derive the app role from the server-issued role (never from client state).
+  useEffect(() => {
+    if (authStatus === "authenticated" && authUser?.role) {
+      setRole(ROLES.some((r) => r.id === authUser.role) ? authUser.role : "ceo");
+      setActive("home");
+    }
+  }, [authStatus, authUser]);
+
   useEffect(() => {
     let active = true;
     void getSupabaseHealth().then((status) => {
@@ -249,23 +259,31 @@ export default function App() {
     };
   }, []);
 
+  // Authentication gates — the app is only reachable when authenticated.
+  if (authStatus === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-navy-900 text-white">
+        <div className="text-center">
+          <div className="font-display text-xl tracking-wide">BEYU Health OS</div>
+          <div className="mt-2 text-sm text-white/60">Restoring secure session…</div>
+        </div>
+      </div>
+    );
+  }
+  if (authStatus === "unauthenticated") {
+    if (stage === "landing") return <Landing onLogin={() => setStage("login")} />;
+    return <Login onBack={() => setStage("landing")} />;
+  }
+
   const items = useMemo(() => {
     if (role === "patient") return navPatient();
     if (role === "trustee") return navTrustee();
     if (role === "board") return navBoard();
     return navMain();
   }, [role]);
-  const user = ROLE_USERS[role] || ROLE_USERS.ceo;
+  const displayName = authUser?.displayName || authUser?.email || "User";
   const roleLabel = ROLES.find((r) => r.id === role)?.label || "User";
-
-  const handleLogin = (r: string) => {
-    setRole(r);
-    setActive("home");
-    setStage("app");
-  };
-
-  if (stage === "landing") return <Landing onLogin={() => setStage("login")} />;
-  if (stage === "login") return <Login onLogin={handleLogin} onBack={() => setStage("landing")} />;
+  const user = ROLE_USERS[role] || { name: displayName, role: roleLabel };
 
   // Role-specific home dashboard
   const homeView = () => {
@@ -366,7 +384,7 @@ export default function App() {
         items={items}
         active={active}
         onSelect={setActive}
-        onExit={() => setStage("landing")}
+        onExit={() => void logout()}
         roleLabel={roleLabel}
         collapsed={collapsed}
         onToggle={() => setCollapsed((c) => !c)}

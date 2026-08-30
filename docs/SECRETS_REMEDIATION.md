@@ -1,7 +1,8 @@
 # Secrets Remediation & Rotation — BEYU Health OS
 
 > **Status:** Completed by the implementation agent on 2026-08-30 (Phase 0 security remediation).
-> **Owner action REQUIRED:** rotate the live credentials listed below. The agent cannot rotate them.
+> **Verified 2026-08-30 (Phase 1A):** repo-wide scan confirms no remaining secret strings or secret files in the working tree or committed history on the active branch; docs redacted to `<REDACTED>`.
+> **Owner action REQUIRED (not yet performed by agent):** rotate the live credentials listed below. The agent cannot rotate them.
 
 ## What was found
 During the Phase 0 audit, live production credentials were committed to the repository (all since purged):

@@ -6,6 +6,11 @@ export class LoginDto {
 
   @IsNotEmpty()
   password: string;
+
+  /** Optional tenant code; if omitted the server resolves the actor's tenant. */
+  @IsOptional()
+  @IsString()
+  tenantCode?: string;
 }
 
 export class RegisterDto {
@@ -19,17 +24,14 @@ export class RegisterDto {
   @MinLength(8)
   password: string;
 
+  /** Self-registration role is restricted server-side (defaults to patient). */
   @IsOptional()
   @IsString()
   role?: string;
 
   @IsOptional()
   @IsString()
-  tenantId?: string;
-
-  @IsOptional()
-  @IsString()
-  organizationId?: string;
+  tenantCode?: string;
 
   @IsOptional()
   @IsString()
@@ -39,4 +41,10 @@ export class RegisterDto {
 export class RefreshTokenDto {
   @IsNotEmpty()
   refreshToken: string;
+}
+
+export class LogoutDto {
+  @IsOptional()
+  @IsString()
+  refreshToken?: string;
 }
