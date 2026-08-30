@@ -15,6 +15,7 @@ VITE_SUPABASE_URL=*.txt
 # ── Node / build ─────────────────────────────────────────────────────────────
 node_modules/
 dist/
+dist-spec/
 build/
 out/
 coverage/

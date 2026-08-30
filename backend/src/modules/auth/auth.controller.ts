@@ -11,7 +11,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto, RefreshTokenDto } from './dto';
-import { JwtGuard } from './guards/jwt.guard';
+import { JwtAuthGuard } from './guards/jwt.guard';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -40,7 +40,7 @@ export class AuthController {
   }
 
   @Get('me')
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get current user profile' })
   async me(@Req() req: any) {
@@ -48,7 +48,7 @@ export class AuthController {
   }
 
   @Post('logout')
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Logout' })
   async logout(@Req() req: any) {

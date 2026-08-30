@@ -1,10 +1,14 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { CacheModule } from '@nestjs/cache-manager';
 import { BullModule } from '@nestjs/bull';
+import { APP_GUARD } from '@nestjs/core';
+import { TenantContextMiddleware } from './common/security/tenant-context.middleware';
+import { TenantContext } from './common/security/tenant-context';
+import { PermissionsGuard } from './common/security/permissions.guard';
 
 // Configuration
 import databaseConfig from './config/database.config';
@@ -60,7 +64,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
       useFactory: (configService: ConfigService) => ({
         autoSchemaFile: true,
         playground: configService.get('NODE_ENV') === 'development',
-        context: ({ req }) => ({ req }),
+        context: ({ req }: { req: Express.Request }) => ({ req }),
       }),
       inject: [ConfigService],
     }),
@@ -104,6 +108,16 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     IntegrationModule,
     SupabaseModule,
   ],
-  providers: [SupabaseConfig],
+  providers: [
+    SupabaseConfig,
+    TenantContext,
+    // Enforce RBAC on every route that declares @RequirePermission(...).
+    { provide: APP_GUARD, useClass: PermissionsGuard },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    // Establish the per-request async context used by authz + tenant guards.
+    consumer.apply(TenantContextMiddleware).forRoutes('*');
+  }
+}
