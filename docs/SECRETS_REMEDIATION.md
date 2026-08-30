@@ -42,3 +42,13 @@ A plaintext **database password** and Supabase keys being in a public repository
 - Use `.env.example` with placeholders for documentation.
 - Secrets must live in a secret manager / CI secret store / vault.
 - Rotate any credential that is ever committed, even "temporarily".
+
+---
+
+## Phase 1D re-verification (2026-08-30)
+
+Re-audited at Phase 1D. **No owner actions have been performed yet:**
+credential rotation is **NOT VERIFIED**, `origin/main` remains at `69883d6` with
+the credential files, and the raw DB password remains in active-branch history
+(commits `7f69400`/`b9023b1`/`f3d2898`). Production gate remains **`BLOCKED`**.
+All rotation + history-purge actions above remain REQUIRED.

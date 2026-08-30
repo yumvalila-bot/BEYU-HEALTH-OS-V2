@@ -437,3 +437,22 @@ and a boot-time fail-closed production guard (non-default `JWT_SECRET` /
 
 **Phase 3 (Patient Master Identity): MUST REMAIN BLOCKED** until these gates are
 genuinely satisfied. See `docs/SECRETS_REMEDIATION.md`.
+
+---
+
+## PHASE 1D OWNER ACTION RE-VERIFICATION (2026-08-30)
+
+Authoritative report: `docs/PHASE_1D_OWNER_SECURITY_AND_PRODUCTION_GATE.md`.
+Re-audit at Phase 1D confirms **no owner-controlled prerequisites have changed**:
+- Credential rotation: `ROTATION NOT VERIFIED` → **BLOCKED**.
+- Git history purge: **NOT performed** (`origin/main` @ `69883d6` still holds the
+  4 credential files; raw DB password remains in active-branch history commits
+  `7f69400`/`b9023b1`/`f3d2898`) → **BLOCKED**.
+- Live database / migrations / live RLS / live authn / authz / tenant isolation /
+  sessions / frontend E2E / MFA provider / live health / deployed production
+  config: all **BLOCKED** (no infra/credentials/provider).
+- Regression remains green: backend lint 0, build PASS, **61 tests / 10 suites**;
+  frontend typecheck + build PASS, **14 tests**.
+- Working tree + `dist`: **CLEAN** (no secret values).
+
+**Overall Phase 1D: `BLOCKED`. PHASE 3 MUST REMAIN BLOCKED.**

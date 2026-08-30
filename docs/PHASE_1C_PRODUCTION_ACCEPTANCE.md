@@ -248,3 +248,14 @@ production against the real deployment environment.
 
 **Phase 3 (Patient Master Identity): `PHASE 3 MUST REMAIN BLOCKED`** until the
 live security-critical gates above are genuinely verified.
+
+---
+
+## Phase 1D re-verification note (2026-08-30)
+
+Re-verified at Phase 1D (see `docs/PHASE_1D_OWNER_SECURITY_AND_PRODUCTION_GATE.md`):
+**nothing has changed.** Status remains **`BLOCKED`**. No `DATABASE_URL`/Supabase
+config, no Docker/Postgres, DB host DNS unresolved, `origin/main` unchanged at
+`69883d6`, credential rotation **not verified**, compromised material still in
+reachable history. Regression remains green (backend 61/10, frontend 14).
+**`PHASE 3 MUST REMAIN BLOCKED`.**
