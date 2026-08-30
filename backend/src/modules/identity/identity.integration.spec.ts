@@ -1,16 +1,17 @@
 /**
  * BEYU Health OS — Phase 1A REAL DATABASE integration tests.
  *
- * These run against a genuine PostgreSQL 16 engine in-process (PGlite) via the
- * DbConnection abstraction — not a mocked database. They cover the Phase 1A
+ * These run against a genuine PostgreSQL engine via the DbConnection
+ * abstraction — not a mocked database. The engine is a real local PostgreSQL
+ * server when TEST_DATABASE_URL (or DATABASE_URL) is set, otherwise PGlite
+ * (a genuine in-process PostgreSQL 16 engine). They cover the Phase 1A
  * completion criteria (persistent identity, authn/authz, sessions, tenant
  * isolation, audit, and negative security attacks).
  */
 import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
-import { PGlite } from "@electric-sql/pglite";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
-import { PGliteConnection } from "./db-connection";
+import { createTestDbConnection, TestDbConnection } from "./test-connection";
 import { IdentityRepository } from "./identity.repository";
 import { SessionService } from "./session.service";
 import { AuditService } from "./audit.service";
@@ -23,9 +24,8 @@ import {
   ActorContext,
 } from "../../common/security/tenant-context";
 
-describe("Phase 1A identity persistence (real PostgreSQL via PGlite)", () => {
-  let pg: PGlite;
-  let conn: PGliteConnection;
+describe("Phase 1A identity persistence (real PostgreSQL)", () => {
+  let conn: TestDbConnection;
   let repo: IdentityRepository;
   let sessions: SessionService;
   let audit: AuditService;
@@ -43,8 +43,7 @@ describe("Phase 1A identity persistence (real PostgreSQL via PGlite)", () => {
   let nurseA: string;
 
   beforeAll(async () => {
-    pg = new PGlite();
-    conn = new PGliteConnection(pg);
+    conn = await createTestDbConnection();
     repo = new IdentityRepository(conn);
     await repo.ensureSchema();
 

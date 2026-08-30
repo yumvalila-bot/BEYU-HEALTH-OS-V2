@@ -477,3 +477,32 @@ Authoritative report: `docs/PHASE_1E_PRODUCTION_VERIFICATION.md`.
   reachable history, remote refs clean). GitHub-side stored packfile blobs and
   secret-scanning alerts require owner action (API access `403`).
 - **Overall Phase 1E: BLOCKED. PHASE 3 MUST REMAIN BLOCKED.**
+
+## PHASE 1F-A REAL POSTGRESQL + RLS VERIFICATION (2026-08-30)
+
+Authoritative report: `docs/PHASE_1F_POSTGRES_RLS_VERIFICATION.md`.
+
+- **Real PostgreSQL 18.4 provisioned locally (127.0.0.1:55432)** and the identity
+  database, migration `001`, transactions, and Row-Level Security were verified
+  against it (not PGlite). **POSTGRESQL: PASS.**
+- **MIGRATIONS: PASS.** Migration applies cleanly to a fresh database and is
+  idempotent; catalog matches schema (8 tables, `users.security_version`,
+  4 RLS policies, unique constraints, FKs, indexes). Fixed a real idempotency
+  defect surfaced only by the shared real database (`CREATE POLICY … already
+  exists`) by adding `DROP POLICY IF EXISTS` before each `CREATE POLICY`.
+- **TRANSACTIONS: PASS** (6/6 on real PG). **RLS: PASS** (enabled + 4 policies).
+  **TENANT ISOLATION: PASS** (15/15 non-owner checks, fail-closed on NULL tenant,
+  cross-tenant read/write denied, sessions & audit events isolated).
+- **APPLICATION DATABASE ROLE: PASS** (`beyu_app` owner, `rolsuper=false`,
+  `rolbypassrls=false`; 6/6 boundary checks).
+- **HEALTH: PASS.** Live boot against real PG: `/health/live` 200,
+  `/health/ready` 200 (`database:"up"`). Live auth smoke test PASS (register →
+  login → `/auth/me` → refresh rotation → logout; wrong password / garbage token /
+  cross-tenant / post-logout reuse all correctly rejected).
+- **Automated regression: PASS.** Backend 61 tests / 10 suites against **real PG**
+  and against **PGlite**; lint/build PASS; frontend 14 tests, typecheck, build PASS.
+- **Secret scan: PASS** (only truncated JWT documentation placeholders in
+  `backend/API_GUIDE.md`; no secrets committed).
+- **Production live gates (Supabase / Vercel / deployment / MFA / live production
+  E2E): still BLOCKED** (no external environment/credentials; not fabricated).
+- **Overall Phase 1F-A: COMPLETE (local real-PG). PHASE 3 MUST REMAIN BLOCKED.**

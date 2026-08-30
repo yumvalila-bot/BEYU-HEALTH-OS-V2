@@ -1,4 +1,4 @@
--- BEYU Health OS — Identity Foundation (Phase 1B)
+-- BEYU Health OS — Identity Foundation (Phase 1B/1F)
 -- Generated from identity-schema.ts (single source of truth). Deterministic, idempotent.
 -- Includes: users.security_version (authorization-freshness guard) and Row-Level
 -- Security policies on tenant-scoped tables (defense-in-depth for non-owner roles).
@@ -99,19 +99,23 @@ CREATE INDEX IF NOT EXISTS idx_auth_events_tenant ON beyu_identity.auth_events(t
 -- server-set session variable app.tenant_id. This prevents accidental
 -- service-role-style bypasses at the data layer.
 ALTER TABLE beyu_identity.tenants ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenants_isolation ON beyu_identity.tenants;
 CREATE POLICY tenants_isolation ON beyu_identity.tenants
   USING (current_setting('app.tenant_id', true) = tenant_id::text);
 
 ALTER TABLE beyu_identity.tenant_memberships ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS memberships_isolation ON beyu_identity.tenant_memberships;
 CREATE POLICY memberships_isolation ON beyu_identity.tenant_memberships
   USING (current_setting('app.tenant_id', true) = tenant_id::text)
   WITH CHECK (current_setting('app.tenant_id', true) = tenant_id::text);
 
 ALTER TABLE beyu_identity.sessions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS sessions_isolation ON beyu_identity.sessions;
 CREATE POLICY sessions_isolation ON beyu_identity.sessions
   USING (current_setting('app.tenant_id', true) = tenant_id::text);
 
 ALTER TABLE beyu_identity.auth_events ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS auth_events_isolation ON beyu_identity.auth_events;
 CREATE POLICY auth_events_isolation ON beyu_identity.auth_events
   USING (current_setting('app.tenant_id', true) = tenant_id::text);
 

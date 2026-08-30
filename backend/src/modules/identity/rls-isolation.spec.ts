@@ -10,24 +10,27 @@
  *   - without `app.tenant_id` (NULL), the role sees NOTHING (fail-closed),
  *   - the table-owner connection still sees all rows (RLS bypass, by design).
  *
- * NOTE: PGlite is a genuine PostgreSQL 16 engine and supports roles/SET ROLE.
+ * Engine: a real local PostgreSQL server when TEST_DATABASE_URL is set, else
+ * PGlite (a genuine PostgreSQL 16 engine) — both support roles/SET ROLE.
  */
 import { describe, it, expect, beforeAll, afterAll, jest } from "@jest/globals";
-import { PGlite } from "@electric-sql/pglite";
-import { PGliteConnection } from "./db-connection";
+import {
+  createTestSuperuserConnection,
+  TestDbConnection,
+} from "./test-connection";
 import { IdentityRepository } from "./identity.repository";
 import * as bcrypt from "bcryptjs";
 
 jest.setTimeout(60_000);
 
 describe("RLS tenant isolation (non-owner database role)", () => {
-  let conn: PGliteConnection;
+  let conn: TestDbConnection;
   let repo: IdentityRepository;
   let tenantAId: string;
   let tenantBId: string;
 
   beforeAll(async () => {
-    conn = new PGliteConnection(new PGlite());
+    conn = await createTestSuperuserConnection();
     repo = new IdentityRepository(conn);
     await repo.ensureSchema();
 
@@ -54,7 +57,9 @@ describe("RLS tenant isolation (non-owner database role)", () => {
     });
 
     // Create a NON-OWNER role with base privileges, then grant access to the
-    // tenant-scoped tables. It must NOT be granted BYPASSRLS.
+    // tenant-scoped tables. It must NOT be granted BYPASSRLS. Idempotent so the
+    // spec can also run against a shared real-PostgreSQL test database.
+    await conn.exec(`DROP ROLE IF EXISTS rls_app`);
     await conn.exec(`CREATE ROLE rls_app NOLOGIN`);
     await conn.exec(`GRANT USAGE ON SCHEMA beyu_identity TO rls_app`);
     await conn.exec(

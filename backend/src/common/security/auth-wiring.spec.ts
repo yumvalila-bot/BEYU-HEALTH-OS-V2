@@ -10,11 +10,11 @@ import { Test } from "@nestjs/testing";
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
-import { PGlite } from "@electric-sql/pglite";
+import { DB_CONNECTION } from "../../modules/identity/db-connection";
 import {
-  DB_CONNECTION,
-  PGliteConnection,
-} from "../../modules/identity/db-connection";
+  createTestDbConnection,
+  TestDbConnection,
+} from "../../modules/identity/test-connection";
 import { IdentityRepository } from "../../modules/identity/identity.repository";
 import { AuditService } from "../../modules/identity/audit.service";
 import { TenantContext } from "./tenant-context";
@@ -38,12 +38,10 @@ import { CsrfOriginGuard } from "./csrf-origin.guard";
 class TestHarness {}
 
 describe("Auth DI wiring", () => {
-  let pg: PGlite;
-  let conn: PGliteConnection;
+  let conn: TestDbConnection;
 
   beforeAll(async () => {
-    pg = new PGlite();
-    conn = new PGliteConnection(pg);
+    conn = await createTestDbConnection();
   });
   afterAll(async () => {
     await conn.close();

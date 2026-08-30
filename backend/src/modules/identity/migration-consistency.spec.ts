@@ -2,16 +2,16 @@
  * Phase 1B — Guard against migration drift.
  *
  * The committed migration file must always reflect the source-of-truth DDL in
- * identity-schema.ts. This spec re-applies the exact migration file to a fresh
- * real-Postgres engine (PGlite) and asserts the newest hardening additions
- * (security_version + RLS) are present, so the migration and the schema source
- * cannot silently diverge.
+ * identity-schema.ts. This spec re-applies the exact migration file to a
+ * genuine PostgreSQL engine (real local server when TEST_DATABASE_URL is set,
+ * else PGlite) and asserts the newest hardening additions (security_version +
+ * RLS) are present, so the migration and the schema source cannot silently
+ * diverge.
  */
 import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import * as fs from "fs";
 import * as path from "path";
-import { PGlite } from "@electric-sql/pglite";
-import { PGliteConnection } from "./db-connection";
+import { createTestDbConnection, TestDbConnection } from "./test-connection";
 
 const UP_SQL = fs.readFileSync(
   path.join(
@@ -27,10 +27,10 @@ const UP_SQL = fs.readFileSync(
 );
 
 describe("Identity migration 001 consistency + validity", () => {
-  let conn: PGliteConnection;
+  let conn: TestDbConnection;
 
   beforeAll(async () => {
-    conn = new PGliteConnection(new PGlite());
+    conn = await createTestDbConnection();
   });
 
   afterAll(async () => {

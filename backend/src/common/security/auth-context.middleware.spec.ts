@@ -5,11 +5,13 @@
  * loaded from the database (not trusted from token claims).
  */
 import { describe, it, expect, beforeAll, afterAll, jest } from "@jest/globals";
-import { PGlite } from "@electric-sql/pglite";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import { UnauthorizedException } from "@nestjs/common";
-import { PGliteConnection } from "../../modules/identity/db-connection";
+import {
+  createTestDbConnection,
+  TestDbConnection,
+} from "../../modules/identity/test-connection";
 import { IdentityRepository } from "../../modules/identity/identity.repository";
 import { AuditService } from "../../modules/identity/audit.service";
 import { TenantContext, ActorContext } from "./tenant-context";
@@ -26,7 +28,7 @@ function makeRequest(token: string | null): any {
 }
 
 describe("AuthContextMiddleware (DB-driven authorization freshness)", () => {
-  let conn: PGliteConnection;
+  let conn: TestDbConnection;
   let repo: IdentityRepository;
   let audit: AuditService;
   let tenant: TenantContext;
@@ -68,7 +70,7 @@ describe("AuthContextMiddleware (DB-driven authorization freshness)", () => {
   };
 
   beforeAll(async () => {
-    conn = new PGliteConnection(new PGlite());
+    conn = await createTestDbConnection();
     repo = new IdentityRepository(conn);
     await repo.ensureSchema();
     audit = new AuditService(repo);

@@ -1,4 +1,4 @@
-import { Logger } from "@nestjs/common";
+import { ConsoleLogger } from "@nestjs/common";
 
 /** Keys whose values are redacted before a log record is emitted. */
 const SECRET_KEYS = new Set([
@@ -30,7 +30,7 @@ function redactValue(key: string): string {
  * secrets or PII credentials reach the log stream. No raw tokens or passwords
  * are ever logged.
  */
-export class JsonLogger extends Logger {
+export class JsonLogger extends ConsoleLogger {
   override log(message: string, ...optionalParams: any[]): void {
     this.write("info", message, optionalParams[0]);
   }

@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { Injectable, Optional, UnauthorizedException } from "@nestjs/common";
 import { IdentityRepository, AuthStatus } from "./identity.repository";
 
 /**
@@ -40,6 +40,7 @@ export class UnavailableMfaProvider implements MfaProvider {
 export class MfaService {
   constructor(
     private readonly repo: IdentityRepository,
+    @Optional()
     private readonly provider: MfaProvider = new UnavailableMfaProvider(),
   ) {}
 

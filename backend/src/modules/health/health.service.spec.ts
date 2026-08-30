@@ -1,8 +1,7 @@
 import { describe, it, expect } from "@jest/globals";
 import { ServiceUnavailableException } from "@nestjs/common";
 import { HealthService } from "./health.service";
-import { PGlite } from "@electric-sql/pglite";
-import { PGliteConnection } from "../identity/db-connection";
+import { createTestDbConnection } from "../identity/test-connection";
 
 describe("HealthService", () => {
   it("liveness never depends on the database", async () => {
@@ -19,7 +18,7 @@ describe("HealthService", () => {
   });
 
   it("readiness is ready when the database is reachable", async () => {
-    const conn = new PGliteConnection(new PGlite());
+    const conn = await createTestDbConnection();
     const svc = new HealthService(conn);
     const res = await svc.checkReadiness();
     expect(res.status).toBe("ready");
@@ -40,7 +39,7 @@ describe("HealthService", () => {
   });
 
   it("does not leak secrets in readiness output", async () => {
-    const conn = new PGliteConnection(new PGlite());
+    const conn = await createTestDbConnection();
     const svc = new HealthService(conn);
     const raw = await svc.checkReadiness();
     const json = JSON.stringify(raw);
